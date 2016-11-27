@@ -27,8 +27,8 @@ struct Vec {
 
 struct Ray {
 	Vec o, d;
-	Ray(Vec o_, Vec d_) 
-		: o(o_), d(d_) 
+	Ray(Vec o_, Vec d_)
+		: o(o_), d(d_)
 	{}
 };
 
@@ -42,7 +42,7 @@ struct Sphere {
 	Refl_t refl;      // reflection type (DIFFuse, SPECular, REFRactive)
 
 	Sphere(double rad_, Vec p_, Vec e_, Vec c_, Refl_t refl_) :
-		rad(rad_), p(p_), e(e_), c(c_), refl(refl_) 
+		rad(rad_), p(p_), e(e_), c(c_), refl(refl_)
 	{}
 
 	double intersect(const Ray &r) const { // returns distance, 0 if nohit
@@ -111,7 +111,7 @@ Vec radiance(const Ray &r_, int depth_, unsigned short *Xi) {
 		bool into = n.dot(nl) > 0;                // Ray from outside going in?
 		double nc = 1, nt = 1.5, nnt = into ? nc / nt : nt / nc, ddn = r.d.dot(nl), cos2t;
 		if ((cos2t = 1 - nnt*nnt*(1 - ddn*ddn)) < 0) {    // Total internal reflection
-														//return obj.e + f.mult(radiance(reflRay,depth,Xi));
+														  //return obj.e + f.mult(radiance(reflRay,depth,Xi));
 			r = reflRay;
 			continue;
 		}
@@ -136,13 +136,14 @@ Vec radiance(const Ray &r_, int depth_, unsigned short *Xi) {
 int main(int argc, char *argv[]) {
 	auto time_stamp = duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
 	std::ofstream data("./Data/sequential" + std::to_string(time_stamp) + ".csv", std::ofstream::out);
-	
+
 	for (int iteration = 0; iteration < 100; ++iteration) {
-		std::cout << "Iteration: " << iteration << std::endl; 
+		std::cout << "Iteration: " << iteration << std::endl;
 		auto start_time = system_clock::now();
 		int w = 512, h = 384, samps = argc == 2 ? atoi(argv[1]) / 4 : 1; // # samples
 		Ray cam(Vec(50, 52, 295.6), Vec(0, -0.042612, -1).norm()); // cam pos, dir
 		Vec cx = Vec(w*.5135 / h), cy = (cx%cam.d).norm()*.5135, r, *c = new Vec[w*h];
+		
 		for (int y = 0; y < h; y++) {                       // Loop over image rows
 			fprintf(stderr, "\rRendering (%d spp) %5.2f%%", samps * 4, 100.*y / (h - 1));
 			for (unsigned short x = 0, Xi[3] = { 0,0,y*y*y }; x < w; x++)   // Loop cols
@@ -158,6 +159,7 @@ int main(int argc, char *argv[]) {
 						c[i] = c[i] + Vec(clamp(r.x), clamp(r.y), clamp(r.z))*.25;
 					}
 		}
+
 		FILE *f = fopen("image.ppm", "w");         // Write image to PPM file.
 		fprintf(f, "P3\n%d %d\n%d\n", w, h, 255);
 		for (int i = 0; i < w*h; i++)

@@ -1,13 +1,20 @@
 #define _USE_MATH_DEFINES
-#include <math.h>   // smallpt, a Path Tracer by Kevin Beason, 2008
-#include <stdlib.h> // Make : g++ -O3 -fopenmp smallpt.cpp -o smallpt
-#include <stdio.h>  //        Remove "-fopenmp" for g++ version < 4.2
-#include <thread>
+#include <math.h>   
+#include <stdlib.h> 
+#include <stdio.h>  
+#include <chrono>
+#include <fstream>
+#include <string>
+#include <iostream>
 
-double erand48(unsigned short seed[3]) { return (double)rand() / (double)RAND_MAX; }// *** Added for VS2012
+using namespace std::chrono;
 
-struct Vec {        // Usage: time ./smallpt 5000 && xv image.ppm
-	double x, y, z;                  // position, also color (r,g,b)
+double erand48(unsigned short seed[3]) {
+	return (double)rand() / (double)RAND_MAX;
+}
+
+struct Vec {
+	double x, y, z;
 	Vec(double x_ = 0, double y_ = 0, double z_ = 0) { x = x_; y = y_; z = z_; }
 	Vec operator+(const Vec &b) const { return Vec(x + b.x, y + b.y, z + b.z); }
 	Vec operator-(const Vec &b) const { return Vec(x - b.x, y - b.y, z - b.z); }
@@ -17,14 +24,27 @@ struct Vec {        // Usage: time ./smallpt 5000 && xv image.ppm
 	double dot(const Vec &b) const { return x*b.x + y*b.y + z*b.z; } // cross:
 	Vec operator%(Vec&b) { return Vec(y*b.z - z*b.y, z*b.x - x*b.z, x*b.y - y*b.x); }
 };
-struct Ray { Vec o, d; Ray(Vec o_, Vec d_) : o(o_), d(d_) {} };
-enum Refl_t { DIFF, SPEC, REFR };  // material types, used in radiance()
+
+struct Ray {
+	Vec o, d;
+	Ray(Vec o_, Vec d_)
+		: o(o_), d(d_)
+	{}
+};
+
+enum Refl_t {
+	DIFF, SPEC, REFR
+};  // material types, used in radiance()
+
 struct Sphere {
 	double rad;       // radius
 	Vec p, e, c;      // position, emission, color
 	Refl_t refl;      // reflection type (DIFFuse, SPECular, REFRactive)
+
 	Sphere(double rad_, Vec p_, Vec e_, Vec c_, Refl_t refl_) :
-		rad(rad_), p(p_), e(e_), c(c_), refl(refl_) {}
+		rad(rad_), p(p_), e(e_), c(c_), refl(refl_)
+	{}
+
 	double intersect(const Ray &r) const { // returns distance, 0 if nohit
 		Vec op = p - r.o; // Solve t^2*d.d + 2*t*(o-p).d + (o-p).(o-p)-R^2 = 0
 		double t, eps = 1e-4, b = op.dot(r.d), det = b*b - op.dot(op) + rad*rad;
@@ -32,6 +52,7 @@ struct Sphere {
 		return (t = b - det) > eps ? t : ((t = b + det) > eps ? t : 0);
 	}
 };
+
 Sphere spheres[] = {//Scene: radius, position, emission, color, material
 	Sphere(1e5, Vec(1e5 + 1,40.8,81.6), Vec(),Vec(.75,.25,.25),DIFF),//Left
 	Sphere(1e5, Vec(-1e5 + 99,40.8,81.6),Vec(),Vec(.25,.25,.75),DIFF),//Rght
@@ -43,31 +64,26 @@ Sphere spheres[] = {//Scene: radius, position, emission, color, material
 	Sphere(16.5,Vec(73,16.5,78),       Vec(),Vec(1,1,1)*.999, REFR),//Glas
 	Sphere(600, Vec(50,681.6 - .27,81.6),Vec(12,12,12),  Vec(), DIFF) //Lite
 };
-inline double clamp(double x) { return x < 0 ? 0 : x>1 ? 1 : x; }
-inline int toInt(double x) { return int(pow(clamp(x), 1 / 2.2) * 255 + .5); }
+
+inline double clamp(double x) {
+	return x < 0 ? 0 : x>1 ? 1 : x;
+}
+
+inline int toInt(double x) {
+	return int(pow(clamp(x), 1 / 2.2) * 255 + .5);
+}
+
 inline bool intersect(const Ray &r, double &t, int &id) {
 	double n = sizeof(spheres) / sizeof(Sphere), d, inf = t = 1e20;
-	for (int i = int(n);i--;) if ((d = spheres[i].intersect(r)) && d < t) { t = d;id = i; }
+	for (int i = int(n); i--;) if ((d = spheres[i].intersect(r)) && d < t) { t = d; id = i; }
 	return t < inf;
 }
+
 Vec radiance(const Ray &r_, int depth_, unsigned short *Xi) {
 	double t;                               // distance to intersection
 	int id = 0;                               // id of intersected object
 	Ray r = r_;
 	int depth = depth_;
-	// L0 = Le0 + f0*(L1)
-	//    = Le0 + f0*(Le1 + f1*L2)
-	//    = Le0 + f0*(Le1 + f1*(Le2 + f2*(L3))
-	//    = Le0 + f0*(Le1 + f1*(Le2 + f2*(Le3 + f3*(L4)))
-	//    = ...
-	//    = Le0 + f0*Le1 + f0*f1*Le2 + f0*f1*f2*Le3 + f0*f1*f2*f3*Le4 + ...
-	// 
-	// So:
-	// F = 1
-	// while (1){
-	//   L += F*Lei
-	//   F *= fi
-	// }
 	Vec cl(0, 0, 0);   // accumulated color
 	Vec cf(1, 1, 1);  // accumulated reflectance
 	while (1) {
@@ -116,28 +132,41 @@ Vec radiance(const Ray &r_, int depth_, unsigned short *Xi) {
 		continue;
 	}
 }
+
 int main(int argc, char *argv[]) {
-	int w = 512, h = 384, samps = argc == 2 ? atoi(argv[1]) / 4 : 1; // # samples
-	Ray cam(Vec(50, 52, 295.6), Vec(0, -0.042612, -1).norm()); // cam pos, dir
-	Vec cx = Vec(w*.5135 / h), cy = (cx%cam.d).norm()*.5135, r, *c = new Vec[w*h];
-#pragma omp parallel for number_threads(thread::hardware_concurrency()) schedule(dynamic, 1) private(r)
-	for (int y = 0; y < h; y++) {                       // Loop over image rows
-		fprintf(stderr, "\rRendering (%d spp) %5.2f%%", samps * 4, 100.*y / (h - 1));
-		for (unsigned short x = 0, Xi[3] = { 0,0,y*y*y }; x < w; x++)   // Loop cols
-			for (int sy = 0, i = (h - y - 1)*w + x; sy < 2; sy++)     // 2x2 subpixel rows
-				for (int sx = 0; sx < 2; sx++, r = Vec()) {        // 2x2 subpixel cols
-					for (int s = 0; s < samps; s++) {
-						double r1 = 2 * erand48(Xi), dx = r1 < 1 ? sqrt(r1) - 1 : 1 - sqrt(2 - r1);
-						double r2 = 2 * erand48(Xi), dy = r2 < 1 ? sqrt(r2) - 1 : 1 - sqrt(2 - r2);
-						Vec d = cx*(((sx + .5 + dx) / 2 + x) / w - .5) +
-							cy*(((sy + .5 + dy) / 2 + y) / h - .5) + cam.d;
-						r = r + radiance(Ray(cam.o + d * 140, d.norm()), 0, Xi)*(1. / samps);
-					} // Camera rays are pushed ^^^^^ forward to start in interior
-					c[i] = c[i] + Vec(clamp(r.x), clamp(r.y), clamp(r.z))*.25;
-				}
+	auto time_stamp = duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
+	std::ofstream data("./Data/parallelOMP4_" + std::to_string(time_stamp) + ".csv", std::ofstream::out);
+
+	for (int iteration = 0; iteration < 100; ++iteration) {
+		std::cout << "Iteration: " << iteration << std::endl;
+		auto start_time = system_clock::now();
+		int w = 512, h = 384, samps = argc == 2 ? atoi(argv[1]) / 4 : 1; // # samples
+		Ray cam(Vec(50, 52, 295.6), Vec(0, -0.042612, -1).norm()); // cam pos, dir
+		Vec cx = Vec(w*.5135 / h), cy = (cx%cam.d).norm()*.5135, r, *c = new Vec[w*h];
+#pragma omp parallel for num_threads(4) schedule(dynamic, 1) private(r)
+		for (int y = 0; y < h; y++) {                       // Loop over image rows
+			fprintf(stderr, "\rRendering (%d spp) %5.2f%%", samps * 4, 100.*y / (h - 1));
+			for (unsigned short x = 0, Xi[3] = { 0,0,y*y*y }; x < w; x++)   // Loop cols
+				for (int sy = 0, i = (h - y - 1)*w + x; sy < 2; sy++)     // 2x2 subpixel rows
+					for (int sx = 0; sx < 2; sx++, r = Vec()) {        // 2x2 subpixel cols
+						for (int s = 0; s < samps; s++) {
+							double r1 = 2 * erand48(Xi), dx = r1 < 1 ? sqrt(r1) - 1 : 1 - sqrt(2 - r1);
+							double r2 = 2 * erand48(Xi), dy = r2 < 1 ? sqrt(r2) - 1 : 1 - sqrt(2 - r2);
+							Vec d = cx*(((sx + .5 + dx) / 2 + x) / w - .5) +
+								cy*(((sy + .5 + dy) / 2 + y) / h - .5) + cam.d;
+							r = r + radiance(Ray(cam.o + d * 140, d.norm()), 0, Xi)*(1. / samps);
+						} // Camera rays are pushed ^^^^^ forward to start in interior
+						c[i] = c[i] + Vec(clamp(r.x), clamp(r.y), clamp(r.z))*.25;
+					}
+		}
+		FILE *f = fopen("imageParallelOMP.ppm", "w");         // Write image to PPM file.
+		fprintf(f, "P3\n%d %d\n%d\n", w, h, 255);
+		for (int i = 0; i < w*h; i++)
+			fprintf(f, "%d %d %d ", toInt(c[i].x), toInt(c[i].y), toInt(c[i].z));
+		auto end_time = system_clock::now();
+		auto total_time = duration_cast<milliseconds>(end_time - start_time).count();
+		data << iteration << "," << total_time << std::endl;
 	}
-	FILE *f = fopen("image.ppm", "w");         // Write image to PPM file.
-	fprintf(f, "P3\n%d %d\n%d\n", w, h, 255);
-	for (int i = 0; i < w*h; i++)
-		fprintf(f, "%d %d %d ", toInt(c[i].x), toInt(c[i].y), toInt(c[i].z));
+	data.flush();
+	data.close();
 }
