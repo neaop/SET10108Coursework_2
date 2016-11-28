@@ -23,17 +23,14 @@ struct Vec {
 		y = y_;
 		z = z_;
 	}
-	Vec operator+(const Vec &b) const { return Vec(x + b.x, y + b.y, z + b.z); }
-	Vec operator-(const Vec &b) const { return Vec(x - b.x, y - b.y, z - b.z); }
-	Vec operator*(double b) const { return Vec(x * b, y * b, z * b); }
-	Vec mult(const Vec &b) const { return Vec(x * b.x, y * b.y, z * b.z); }
-	Vec &norm() { return *this = *this * (1 / sqrt(x * x + y * y + z * z)); }
-	double dot(const Vec &b) const {
-		return x * b.x + y * b.y + z * b.z;
-	}
+	Vec operator+(const Vec &b) const { return Vec(x + b.x, y + b.y, z + b.z);	}
+	Vec operator-(const Vec &b) const { return Vec(x - b.x, y - b.y, z - b.z);	}
+	Vec operator*(double b) const { return Vec(x * b, y * b, z * b);			}
+	Vec mult(const Vec &b) const { return Vec(x * b.x, y * b.y, z * b.z);		}
+	Vec &norm() { return *this = *this * (1 / sqrt(x * x + y * y + z * z));		}
+	double dot(const Vec &b) const {return x * b.x + y * b.y + z * b.z;			}
 	Vec operator%(Vec &b) {
-		return Vec(y * b.z - z * b.y, z * b.x - x * b.z, x * b.y - y * b.x);
-	}
+		return Vec(y * b.z - z * b.y, z * b.x - x * b.z, x * b.y - y * b.x);	}
 };
 
 // A line with origin and direction.
@@ -61,15 +58,12 @@ struct Sphere {
 		double t, eps = 1e-4;
 		double b = op.dot(r.d);
 		double det = b * b - op.dot(op) + rad * rad;
-		if (det < 0) {
+		if (det < 0) 
 			return 0;
-		}
-		else {
+		else 
 			det = sqrt(det);
-		}
 		return (t = b - det) > eps ? t : ((t = b + det) > eps ? t : 0);
 	}
-
 };
 
 // Scene to be rendered - made entierly of spheres.
@@ -87,13 +81,18 @@ Sphere spheres[] = {
 };
 
 // Clamp unbounded colour to be between 0 - 255.
-inline double clamp(double x) { return x < 0 ? 0 : x > 1 ? 1 : x; }
+inline double clamp(double x) { 
+	return x < 0 ? 0 : x > 1 ? 1 : x; 
+}
 
 // Converts doubles to ints to be saved into .ppm file.
-inline int toInt(double x) { return int(pow(clamp(x), 1 / 2.2) * 255 + .5); }
+inline int toInt(double x) { 
+	return int(pow(clamp(x), 1 / 2.2) * 255 + .5); 
+}
 
 // Intersect a ray with the scene.
 inline bool intersect(const Ray &r, double &t, int &id) {
+
 	double n = sizeof(spheres) / sizeof(Sphere);
 	double d;
 	double inf = t = 1e20;
@@ -107,26 +106,28 @@ inline bool intersect(const Ray &r, double &t, int &id) {
 
 // Computes the radiance estimate along a ray.
 Vec radiance(const Ray &r_, int depth_, unsigned short *Xi) {
-	double t;   // distance to intersection
-	int id = 0; // id of intersected object
+
+	double t;	// distance to intersection
+	int id = 0;	// id of intersected object
 	Ray r = r_;
 	int depth = depth_;
-	Vec cl(0, 0, 0); // accumulated color
-	Vec cf(1, 1, 1); // accumulated reflectance
+	Vec cl(0, 0, 0);	// accumulated color
+	Vec cf(1, 1, 1);	// accumulated reflectance
+
 	while (1) {
 		if (!intersect(r, t, id))
-			return cl;                     // if miss, return black
-		const Sphere &obj = spheres[id]; // the hit object
+			return cl;	// if miss, return black
+		const Sphere &obj = spheres[id];	// the hit object
 		Vec x = r.o + r.d * t, n = (x - obj.p).norm(), nl = n.dot(r.d) < 0 ? n : n * -1, f = obj.c;
-		double p = f.x > f.y && f.x > f.z ? f.x : f.y > f.z ? f.y : f.z; // max refl
+		double p = f.x > f.y && f.x > f.z ? f.x : f.y > f.z ? f.y : f.z;	// max refl
 		cl = cl + cf.mult(obj.e);
 		if (++depth > 5)
 			if (erand48(Xi) < p)
 				f = f * (1 / p);
 			else
-				return cl; // R.R.
+				return cl;	// R.R.
 		cf = cf.mult(f);
-		if (obj.refl == DIFF) { // Ideal DIFFUSE reflection
+		if (obj.refl == DIFF) {	// Ideal DIFFUSE reflection
 			double r1 = 2 * M_PI * erand48(Xi), r2 = erand48(Xi), r2s = sqrt(r2);
 			Vec w = nl, u = ((fabs(w.x) > .1 ? Vec(0, 1) : Vec(1)) % w).norm(), v = w % u;
 			Vec d = (u * cos(r1) * r2s + v * sin(r1) * r2s + w * sqrt(1 - r2)).norm();
@@ -168,6 +169,7 @@ Vec radiance(const Ray &r_, int depth_, unsigned short *Xi) {
 }
 
 MPI_Datatype createMPIVec() {
+
 	MPI_Datatype VecType;
 	MPI_Datatype type[3] = { MPI_DOUBLE, MPI_DOUBLE, MPI_DOUBLE };
 	int blockLen[3] = { 1,1,1 };
@@ -195,45 +197,41 @@ void execute(int samples, int my_rank, int num_procs) {
 	int chunk = h / num_procs;
 	int chunk_end = (my_rank + 1) * chunk;
 
-	Vec *my_pixels = new Vec[w * chunk];				// The image being rendered.
+	Vec *my_pixels = new Vec[w * chunk];	// The image being rendered.
 	MPI_Datatype vecType = createMPIVec();
 	std::cout << "MyRank = " << my_rank << " start index = " << chunk * my_rank << " end index = " << chunk_end << std::endl;
-	for (int y = chunk * my_rank; y < chunk_end; y++) {			// Loop over image rows.
-
+	for (int y = chunk * my_rank; y < chunk_end; y++) {					// Loop over image rows.
 		unsigned short Xi[3] = { 0, 0, y * y * y };
-		for (unsigned short x = 0; x < w; x++) { 	// Loop over columns
+		for (unsigned short x = 0; x < w; x++) { 						// Loop over columns
 			for (int sy = 0, i = (h - y - 1) * w + x; sy < 2; sy++) {	// 2x2 subpixel rows
-				for (int sx = 0; sx < 2; sx++, r = Vec()) {			// 2x2 subpixel cols
-					for (int s = 0; s < samps; s++) {				// For number of samples.
+				for (int sx = 0; sx < 2; sx++, r = Vec()) {				// 2x2 subpixel cols
+					for (int s = 0; s < samps; s++) {					// For number of samples.
 
 						double r1 = 2 * erand48(Xi), dx = r1 < 1 ? sqrt(r1) - 1 : 1 - sqrt(2 - r1);
 						double r2 = 2 * erand48(Xi), dy = r2 < 1 ? sqrt(r2) - 1 : 1 - sqrt(2 - r2);
 						// Compute ray direction
 						Vec d = cx * (((sx + .5 + dx) / 2 + x) / w - .5) +
 							cy * (((sy + .5 + dy) / 2 + y) / h - .5) + cam.d;
-
 						r = r + radiance(Ray(cam.o + d * 140, d.norm()), 0, Xi) * (1. / samps);
-					} // Camera rays are pushed ^^^^^ forward to start in interior.
+					}	// Camera rays are pushed ^^^^^ forward to start in interior.
 					my_pixels[i] = my_pixels[i] + Vec(clamp(r.x), clamp(r.y), clamp(r.z)) * .25;
 				}
 			}
 		}
 	}
 
-	Vec *c;
-	int ranks[4] = { -1,-1,-1,-1 };
-
+	Vec *all_pixels;	// Declare datastructure for all pixels
 	if (my_rank == 0) {
-		c = new Vec[w*h];
+		all_pixels = new Vec[w * h];	// Initialize pixel data structure
 		std::cout << "Commencing gather." << std::endl;
 	}
 
-	MPI_Gather(&my_pixels[0], chunk, vecType, &c[0], chunk, vecType, 0, MPI_COMM_WORLD);
+	// Gather individual processor pixels into proc 0.
+	MPI_Gather(&my_pixels[0], chunk, vecType, &all_pixels[0], chunk, vecType, 0, MPI_COMM_WORLD);
 
+	// Write pixel values to file.
 	if (my_rank == 0) {
-
 		std::cout << "Drawing image." << std::endl;
-
 		FILE *f = fopen("image.ppm", "w"); // Write image to PPM file.
 		fprintf(f, "P3\n%d %d\n%d\n", w, h, 255);
 		for (int i = 0; i < w * h; i++) {
@@ -245,9 +243,9 @@ void execute(int samples, int my_rank, int num_procs) {
 }
 
 int main(int argc, char *argv[]) {
-	int num_procs, my_rank;
 
 	// Initialise MPI.
+	int num_procs, my_rank;
 	auto result = MPI_Init(nullptr, nullptr);
 
 	if (result != MPI_SUCCESS) {
@@ -263,7 +261,7 @@ int main(int argc, char *argv[]) {
 	time_point<system_clock> start_time;
 
 	if (my_rank == 0) {
-		// Get current time for  timings file timestamp.
+		// Get current time for timings file timestamp.
 		auto time_stamp = duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
 		// Create timings file.
 		std::ofstream data("./Data/parallelMPI_" + std::to_string(time_stamp) + ".csv", std::ofstream::out);
