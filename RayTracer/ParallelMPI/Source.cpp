@@ -7,6 +7,7 @@
 #include <stdlib.h>
 #include <string>
 #include <mpi.h>
+#include <exception>
 
 using namespace std::chrono;
 
@@ -166,7 +167,23 @@ Vec radiance(const Ray &r_, int depth_, unsigned short *Xi) {
 	}
 }
 
+MPI_Datatype createMPIVec() {
+	MPI_Datatype VecType;
+	MPI_Datatype type[3] = { MPI_DOUBLE, MPI_DOUBLE, MPI_DOUBLE };
+	int blockLen[3] = { 1,1,1 };
+	MPI_Aint disp[3];
+
+	disp[0] = (MPI_Aint)offsetof(struct Vec, x);
+	disp[1] = (MPI_Aint)offsetof(struct Vec, y);
+	disp[2] = (MPI_Aint)offsetof(struct Vec, z);
+
+	MPI_Type_create_struct(3, blockLen, disp, type, &VecType);
+	MPI_Type_commit(&VecType);
+	return VecType;
+}
+
 void execute(int samples, int my_rank, int num_procs) {
+
 	int w = 512, h = 384;	// Image dimensions.
 	int samps = samples;	// Number of samples.
 	Ray cam(Vec(50, 52, 295.6), Vec(0, -0.042612, -1).norm()); // Camera position and direction.
@@ -174,33 +191,21 @@ void execute(int samples, int my_rank, int num_procs) {
 	Vec cy = (cx % cam.d).norm() * .5135;	// Y direction increment.
 	Vec r;									// Colour samples.
 
+	int rank = my_rank;
 	int chunk = h / num_procs;
 	int chunk_end = (my_rank + 1) * chunk;
 
-	Vec *c = new Vec[w * chunk_end];				// The image being rendered.
+	Vec *my_pixels = new Vec[w * chunk];				// The image being rendered.
+	MPI_Datatype vecType = createMPIVec();
+	std::cout << "MyRank = " << my_rank << " start index = " << chunk * my_rank << " end index = " << chunk_end << std::endl;
+	for (int y = chunk * my_rank; y < chunk_end; y++) {			// Loop over image rows.
 
-	MPI_Datatype VecType;
-	MPI_Datatype type[3] = { MPI_DOUBLE,MPI_DOUBLE,MPI_DOUBLE };
-	int blockLen[3] = { 1,1,1 };
-	MPI_Aint disp[3];
-
-	;
-	disp[0] = *c[0].x - *c[0];
-	disp[1] = &c[0].y - &c[0];
-	disp[2] = &c[0].z - &c[0];
-
-	MPI_Type_create_struct(3, blockLen, disp, type, &VecType);
-	MPI_Type_commit(&VecType);
-
-	for (int y = chunk*my_rank; y < chunk_end; y++) {			// Loop over image rows.
-											// Print progress.
-		fprintf(stderr, "\rRendering (%d spp) %5.2f%%", samps * 4, 100. * y / (h - 1));
 		unsigned short Xi[3] = { 0, 0, y * y * y };
-		for (unsigned short x = 0; x < w; x++)	// Loop over columns
-
-			for (int sy = 0, i = (h - y - 1) * w + x; sy < 2; sy++)	// 2x2 subpixel rows
+		for (unsigned short x = 0; x < w; x++) { 	// Loop over columns
+			for (int sy = 0, i = (h - y - 1) * w + x; sy < 2; sy++) {	// 2x2 subpixel rows
 				for (int sx = 0; sx < 2; sx++, r = Vec()) {			// 2x2 subpixel cols
 					for (int s = 0; s < samps; s++) {				// For number of samples.
+
 						double r1 = 2 * erand48(Xi), dx = r1 < 1 ? sqrt(r1) - 1 : 1 - sqrt(2 - r1);
 						double r2 = 2 * erand48(Xi), dy = r2 < 1 ? sqrt(r2) - 1 : 1 - sqrt(2 - r2);
 						// Compute ray direction
@@ -209,13 +214,33 @@ void execute(int samples, int my_rank, int num_procs) {
 
 						r = r + radiance(Ray(cam.o + d * 140, d.norm()), 0, Xi) * (1. / samps);
 					} // Camera rays are pushed ^^^^^ forward to start in interior.
-					c[i] = c[i] + Vec(clamp(r.x), clamp(r.y), clamp(r.z)) * .25;
+					my_pixels[i] = my_pixels[i] + Vec(clamp(r.x), clamp(r.y), clamp(r.z)) * .25;
 				}
+			}
+		}
 	}
-	FILE *f = fopen("image.ppm", "w"); // Write image to PPM file.
-	fprintf(f, "P3\n%d %d\n%d\n", w, h, 255);
-	for (int i = 0; i < w * h; i++)
-		fprintf(f, "%d %d %d ", toInt(c[i].x), toInt(c[i].y), toInt(c[i].z));
+
+	Vec *c;
+	int ranks[4] = { -1,-1,-1,-1 };
+
+	if (my_rank == 0) {
+		c = new Vec[w*h];
+		std::cout << "Commencing gather." << std::endl;
+	}
+
+	MPI_Gather(&my_pixels[0], chunk, vecType, &c[0], chunk, vecType, 0, MPI_COMM_WORLD);
+
+	if (my_rank == 0) {
+
+		std::cout << "Drawing image." << std::endl;
+
+		FILE *f = fopen("image.ppm", "w"); // Write image to PPM file.
+		fprintf(f, "P3\n%d %d\n%d\n", w, h, 255);
+		for (int i = 0; i < w * h; i++) {
+			//fprintf(stderr, "%d %d %d", toInt(c[i].x), toInt(c[i].y), toInt(c[i].z));
+			fprintf(f, "%d %d %d ", toInt(my_pixels[i].x), toInt(my_pixels[i].y), toInt(my_pixels[i].z));
+		}
+	}
 
 }
 
@@ -246,14 +271,15 @@ int main(int argc, char *argv[]) {
 	}
 
 	int samps = argc == 2 ? atoi(argv[1]) / 4 : 1;
-	execute(samps,my_rank,num_procs);
+
+	execute(samps, my_rank, num_procs);
 
 	if (my_rank == 0) {
 		auto end_time = system_clock::now();
 		auto total_time = duration_cast<milliseconds>(end_time - start_time).count();
 		data << "," << total_time << std::endl;
+		data.flush();
+		data.close();
 	}
-
-	data.flush();
-	data.close();
+	MPI_Finalize();
 }
