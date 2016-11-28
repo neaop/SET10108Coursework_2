@@ -193,14 +193,16 @@ void execute(int samples, int my_rank, int num_procs) {
 	Vec cy = (cx % cam.d).norm() * .5135;	// Y direction increment.
 	Vec r;									// Colour samples.
 
-	int rank = my_rank;
 	int chunk = h / num_procs;
 	int chunk_end = (my_rank + 1) * chunk;
 
 	Vec *my_pixels = new Vec[w * chunk];	// The image being rendered.
 	MPI_Datatype vecType = createMPIVec();
 	std::cout << "MyRank = " << my_rank << " start index = " << chunk * my_rank << " end index = " << chunk_end << std::endl;
+	MPI_Barrier(MPI_COMM_WORLD);
+
 	for (int y = chunk * my_rank; y < chunk_end; y++) {					// Loop over image rows.
+		std::cout << my_rank << " " << y << std::endl;
 		unsigned short Xi[3] = { 0, 0, y * y * y };
 		for (unsigned short x = 0; x < w; x++) { 						// Loop over columns
 			for (int sy = 0, i = (h - y - 1) * w + x; sy < 2; sy++) {	// 2x2 subpixel rows
@@ -219,7 +221,9 @@ void execute(int samples, int my_rank, int num_procs) {
 			}
 		}
 	}
-
+	
+	std::cout << my_rank << " Done son." << std::endl;
+	MPI_Barrier(MPI_COMM_WORLD);
 	Vec *all_pixels;	// Declare datastructure for all pixels
 	if (my_rank == 0) {
 		all_pixels = new Vec[w * h];	// Initialize pixel data structure
@@ -279,5 +283,7 @@ int main(int argc, char *argv[]) {
 		data.flush();
 		data.close();
 	}
+
 	MPI_Finalize();
+	return 0;
 }
