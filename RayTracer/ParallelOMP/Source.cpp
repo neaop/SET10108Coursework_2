@@ -136,7 +136,11 @@ Vec radiance(const Ray &r_, int depth_, unsigned short *Xi) {
 int main(int argc, char *argv[]) {
 	auto file_time = duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
 	auto time_stamp = std::to_string(file_time);
+<<<<<<< HEAD
 	std::ofstream data("./Data/parallelOMP4S_" + time_stamp + ".csv", std::ofstream::out);
+=======
+	std::ofstream data("./Data/parallelOMP2S1_" + time_stamp + ".csv", std::ofstream::out);
+>>>>>>> 02f0176612bd0e8fa4e5b5c1b5ea745a24822c60
 
 	for (int iteration = 0; iteration < 100; ++iteration) {
 		std::cout << "Iteration: " << iteration << std::endl;
@@ -144,7 +148,11 @@ int main(int argc, char *argv[]) {
 		int w = 512, h = 384, samps = argc == 2 ? atoi(argv[1]) / 4 : 1; // # samples
 		Ray cam(Vec(50, 52, 295.6), Vec(0, -0.042612, -1).norm()); // cam pos, dir
 		Vec cx = Vec(w*.5135 / h), cy = (cx%cam.d).norm()*.5135, r, *c = new Vec[w*h];
+<<<<<<< HEAD
 #pragma omp parallel for num_threads(4) schedule(static) private(r)
+=======
+#pragma omp parallel for num_threads(2) schedule(static, 1) private(r)
+>>>>>>> 02f0176612bd0e8fa4e5b5c1b5ea745a24822c60
 		for (int y = 0; y < h; y++) {                       // Loop over image rows
 			fprintf(stderr, "\rRendering (%d spp) %5.2f%%", samps * 4, 100.*y / (h - 1));
 			for (unsigned short x = 0, Xi[3] = { 0,0,y*y*y }; x < w; x++)   // Loop cols
@@ -160,7 +168,11 @@ int main(int argc, char *argv[]) {
 						c[i] = c[i] + Vec(clamp(r.x), clamp(r.y), clamp(r.z))*.25;
 					}
 		}
+<<<<<<< HEAD
 		FILE *f = fopen("imageOMP.ppm", "w");         // Write image to PPM file.
+=======
+		FILE *f = fopen("imageOMP", "w");         // Write image to PPM file.
+>>>>>>> 02f0176612bd0e8fa4e5b5c1b5ea745a24822c60
 		fprintf(f, "P3\n%d %d\n%d\n", w, h, 255);
 		for (int i = 0; i < w*h; i++)
 			fprintf(f, "%d %d %d ", toInt(c[i].x), toInt(c[i].y), toInt(c[i].z));
