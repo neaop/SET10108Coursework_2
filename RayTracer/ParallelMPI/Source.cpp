@@ -6,6 +6,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string>
+#include <mpi.h>
 
 using namespace std::chrono;
 
@@ -165,16 +166,33 @@ Vec radiance(const Ray &r_, int depth_, unsigned short *Xi) {
 	}
 }
 
-void execute(int samples) {
-	int w = 512, h = 384;							// Image dimensions.
+void execute(int samples, int my_rank, int num_procs) {
+	int w = 512, h = 384;	// Image dimensions.
 	int samps = samples;	// Number of samples.
 	Ray cam(Vec(50, 52, 295.6), Vec(0, -0.042612, -1).norm()); // Camera position and direction.
 	Vec cx = Vec(w * .5135 / h);			// X direction increment.
 	Vec cy = (cx % cam.d).norm() * .5135;	// Y direction increment.
 	Vec r;									// Colour samples.
-	Vec *c = new Vec[w * h];				// The image being rendered.
 
-	for (int y = 0; y < h; y++) {			// Loop over image rows.
+	int chunk = h / num_procs;
+	int chunk_end = (my_rank + 1) * chunk;
+
+	Vec *c = new Vec[w * chunk_end];				// The image being rendered.
+
+	MPI_Datatype VecType;
+	MPI_Datatype type[3] = { MPI_DOUBLE,MPI_DOUBLE,MPI_DOUBLE };
+	int blockLen[3] = { 1,1,1 };
+	MPI_Aint disp[3];
+
+	;
+	disp[0] = *c[0].x - *c[0];
+	disp[1] = &c[0].y - &c[0];
+	disp[2] = &c[0].z - &c[0];
+
+	MPI_Type_create_struct(3, blockLen, disp, type, &VecType);
+	MPI_Type_commit(&VecType);
+
+	for (int y = chunk*my_rank; y < chunk_end; y++) {			// Loop over image rows.
 											// Print progress.
 		fprintf(stderr, "\rRendering (%d spp) %5.2f%%", samps * 4, 100. * y / (h - 1));
 		unsigned short Xi[3] = { 0, 0, y * y * y };
@@ -202,25 +220,40 @@ void execute(int samples) {
 }
 
 int main(int argc, char *argv[]) {
-	// Get current time for  timings file timestamp.
-	auto time_stamp = duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
-	// Create timings file.
-	std::ofstream data("./Data/parallelMPI_" + std::to_string(time_stamp) + ".csv", std::ofstream::out);
+	int num_procs, my_rank;
 
-	// Loop 100 times
-	for (int iteration = 0; iteration < 100; ++iteration) {
-		// Output current itteration.
-		std::cout << "Iteration: " << iteration << std::endl;
-		auto start_time = system_clock::now();
+	// Initialise MPI.
+	auto result = MPI_Init(nullptr, nullptr);
 
-		int samps = argc == 2 ? atoi(argv[1]) / 4 : 1;
-		execute(samps);
-
-		auto end_time = system_clock::now();
-		auto total_time =
-			duration_cast<milliseconds>(end_time - start_time).count();
-		data << iteration << "," << total_time << std::endl;
+	if (result != MPI_SUCCESS) {
+		MPI_Abort(MPI_COMM_WORLD, result);
+		return -1;
 	}
+
+	// Get MPI info.
+	MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
+	MPI_Comm_rank(MPI_COMM_WORLD, &my_rank);
+
+	std::ofstream data;
+	time_point<system_clock> start_time;
+
+	if (my_rank == 0) {
+		// Get current time for  timings file timestamp.
+		auto time_stamp = duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
+		// Create timings file.
+		std::ofstream data("./Data/parallelMPI_" + std::to_string(time_stamp) + ".csv", std::ofstream::out);
+		start_time = system_clock::now();
+	}
+
+	int samps = argc == 2 ? atoi(argv[1]) / 4 : 1;
+	execute(samps,my_rank,num_procs);
+
+	if (my_rank == 0) {
+		auto end_time = system_clock::now();
+		auto total_time = duration_cast<milliseconds>(end_time - start_time).count();
+		data << "," << total_time << std::endl;
+	}
+
 	data.flush();
 	data.close();
 }
