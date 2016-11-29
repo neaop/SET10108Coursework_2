@@ -187,27 +187,51 @@ MPI_Datatype createMPIVec() {
 void execute(int samples, int my_rank, int num_procs) {
 
 	int w = 512, h = 384;	// Image dimensions.
-	int samps = samples;	// Number of samples.
-	Ray cam(Vec(50, 52, 295.6), Vec(0, -0.042612, -1).norm()); // Camera position and direction.
-	Vec cx = Vec(w * .5135 / h);			// X direction increment.
-	Vec cy = (cx % cam.d).norm() * .5135;	// Y direction increment.
-	Vec r;									// Colour samples.
-
+	int samps = samples;							// Number of samples.
+	
 	int chunk = h / num_procs;
 	int chunk_end = (my_rank + 1) * chunk;
 
-	Vec *my_pixels = new Vec[w * chunk];	// The image being rendered.
-	MPI_Datatype vecType = createMPIVec();
-	std::cout << "MyRank = " << my_rank << " start index = " << chunk * my_rank << " end index = " << chunk_end << std::endl;
-	MPI_Barrier(MPI_COMM_WORLD);
+	Ray cam(Vec(50, 52, 295.6), Vec(0, -0.042612, -1).norm()); // Camera position and direction.
+	
+	Vec cx = Vec(w * .5135 / h);					// X direction increment.
+	Vec cy = (cx % cam.d).norm() * .5135;			// Y direction increment.
+	Vec r;											// Colour samples.
 
-	for (int y = chunk * my_rank; y < chunk_end; y++) {					// Loop over image rows.
-		std::cout << my_rank << " " << y << std::endl;
+	
+
+	Vec *my_pixels = new Vec[w * chunk];	// The image being rendered.
+
+
+	MPI_Datatype MPI_Vec;
+	MPI_Datatype type[3] = { MPI_DOUBLE, MPI_DOUBLE, MPI_DOUBLE };
+	int blockLen[3] = { 1,1,1 };
+	MPI_Aint disp[3];
+	
+	disp[0] = (MPI_Aint)offsetof(Vec, x);
+	disp[1] = (MPI_Aint)offsetof(Vec, y);
+	disp[2] = (MPI_Aint)offsetof(Vec, z);
+
+	MPI_Type_create_struct(3, blockLen, disp, type, &MPI_Vec);
+	MPI_Type_commit(&MPI_Vec);
+	//return VecType;
+
+
+	std::cout << "MyRank = " << my_rank << " start index = " << chunk * my_rank << " end index = " << chunk_end << std::endl;
+	
+	for (int y = chunk * my_rank; y < chunk_end; y++) {	// Loop over image rows.
+		
+		std::cout << my_rank << " Loop Height " << y << std::endl;
 		unsigned short Xi[3] = { 0, 0, y * y * y };
-		for (unsigned short x = 0; x < w; x++) { 						// Loop over columns
-			for (int sy = 0, i = (h - y - 1) * w + x; sy < 2; sy++) {	// 2x2 subpixel rows
-				for (int sx = 0; sx < 2; sx++, r = Vec()) {				// 2x2 subpixel cols
-					for (int s = 0; s < samps; s++) {					// For number of samples.
+		
+		for (unsigned short x = 0; x < w; x++) { 
+			//std::cout << my_rank << " Loop Width " << x << std::endl;
+			for (int sy = 0, i = (chunk_end - y - 1) * w + x; sy < 2; sy++) {
+				//std::cout << my_rank << " Loop subRow " << sy << std::endl;
+				for (int sx = 0; sx < 2; sx++, r = Vec()) {		
+					//std::cout << my_rank << " Loop subCol " << sx << std::endl;
+					for (int s = 0; s < samps; s++) {
+						//std::cout << my_rank << " Loop samp " << s << std::endl;
 
 						double r1 = 2 * erand48(Xi), dx = r1 < 1 ? sqrt(r1) - 1 : 1 - sqrt(2 - r1);
 						double r2 = 2 * erand48(Xi), dy = r2 < 1 ? sqrt(r2) - 1 : 1 - sqrt(2 - r2);
@@ -217,30 +241,58 @@ void execute(int samples, int my_rank, int num_procs) {
 						r = r + radiance(Ray(cam.o + d * 140, d.norm()), 0, Xi) * (1. / samps);
 					}	// Camera rays are pushed ^^^^^ forward to start in interior.
 					my_pixels[i] = my_pixels[i] + Vec(clamp(r.x), clamp(r.y), clamp(r.z)) * .25;
+				/*	if(my_rank==1)
+						printf("%d %d %d \n", toInt(my_pixels[i].x), toInt(my_pixels[i].y), toInt(my_pixels[i].z));*/
+
 				}
 			}
 		}
 	}
 	
 	std::cout << my_rank << " Done son." << std::endl;
-	MPI_Barrier(MPI_COMM_WORLD);
 	Vec *all_pixels;	// Declare datastructure for all pixels
+
+	int*ranks;
+
+
 	if (my_rank == 0) {
 		all_pixels = new Vec[w * h];	// Initialize pixel data structure
 		std::cout << "Commencing gather." << std::endl;
+
+		ranks = new int [num_procs];
+		for (int i = 0; i <num_procs; i++) {
+			ranks[i] = 100;
+		}
+		for (int i = 0; i < w * h; i++) {
+			all_pixels[i].x = 3.0;
+		}
+	}
+
+
+	MPI_Gather(&my_rank, 1, MPI_INT, &ranks[0], 1, MPI_INT, 0, MPI_COMM_WORLD);
+
+	if (my_rank == 0) {
+		for (size_t i = 0; i < num_procs; i++)
+		{
+			std::cout << ranks[i] << std::endl;
+		}
+
 	}
 
 	// Gather individual processor pixels into proc 0.
-	MPI_Gather(&my_pixels[0], chunk, vecType, &all_pixels[0], chunk, vecType, 0, MPI_COMM_WORLD);
+	MPI_Gather(&my_pixels[0], chunk*w, MPI_Vec, &all_pixels[0], chunk*w, MPI_Vec, 0, MPI_COMM_WORLD);
+
 
 	// Write pixel values to file.
 	if (my_rank == 0) {
 		std::cout << "Drawing image." << std::endl;
 		FILE *f = fopen("image.ppm", "w"); // Write image to PPM file.
 		fprintf(f, "P3\n%d %d\n%d\n", w, h, 255);
+
 		for (int i = 0; i < w * h; i++) {
 			//fprintf(stderr, "%d %d %d", toInt(c[i].x), toInt(c[i].y), toInt(c[i].z));
-			fprintf(f, "%d %d %d ", toInt(my_pixels[i].x), toInt(my_pixels[i].y), toInt(my_pixels[i].z));
+			fprintf(f, "%d %d %d ", toInt(all_pixels[i].x), toInt(all_pixels[i].y), toInt(all_pixels[i].z));
+			//printf("%d %d %d \n", toInt(all_pixels[i].x), toInt(all_pixels[i].y), toInt(all_pixels[i].z));
 		}
 	}
 
