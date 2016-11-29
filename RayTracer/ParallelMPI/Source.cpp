@@ -210,30 +210,27 @@ void execute(int samples, int my_rank, int num_procs) {
 				for (int sx = 0; sx < 2; sx++, r = Vec()) {		
 					for (int s = 0; s < samps; s++) {
 
-						double r1 = 2 * erand48(Xi), dx = r1 < 1 ? sqrt(r1) - 1 : 1 - sqrt(2 - r1);
-						double r2 = 2 * erand48(Xi), dy = r2 < 1 ? sqrt(r2) - 1 : 1 - sqrt(2 - r2);
-						// Compute ray direction
+						double r1 = 2 * erand48(Xi);
+						double dx = r1 < 1 ? sqrt(r1) - 1 : 1 - sqrt(2 - r1);
+						double r2 = 2 * erand48(Xi);
+						double dy = r2 < 1 ? sqrt(r2) - 1 : 1 - sqrt(2 - r2);
+						
 						Vec d = cx * (((sx + .5 + dx) / 2 + x) / w - .5) +
-							cy * (((sy + .5 + dy) / 2 + y) / h - .5) + cam.d;
+							cy * (((sy + .5 + dy) / 2 + y) / h - .5) + cam.d; // Compute ray direction
 						r = r + radiance(Ray(cam.o + d * 140, d.norm()), 0, Xi) * (1. / samps);
-					}	// Camera rays are pushed ^^^^^ forward to start in interior.
-					
+					}	
+					// Camera rays are pushed ^^^^^ forward to start in interior.
 					my_pixels[i] = my_pixels[i] + Vec(clamp(r.x), clamp(r.y), clamp(r.z)) * .25;
-				
 				}
 			}
 		}
 	}
 	
-	//std::cout << my_rank << " Done son." << std::endl;
 	Vec *all_pixels;	// Declare datastructure for all pixels
 
 	if (my_rank == 0) {
 		all_pixels = new Vec[w * h];	// Initialize pixel data structure
 		std::cout << "Commencing gather." << std::endl;		
-		for (int i = 0; i < w * h; i++) {
-			all_pixels[i].x = 3.0;
-		}
 	}
 	
 	// Gather individual processor pixels into proc 0.
