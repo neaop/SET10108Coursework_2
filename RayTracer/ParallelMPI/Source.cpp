@@ -242,10 +242,12 @@ void execute(int samples, int my_rank, int num_procs) {
 		FILE *f = fopen("image.ppm", "w"); 
 		fprintf(f, "P3\n%d %d\n%d\n", w, h, 255);
 
-		// Write image to PPM file.
-		for (int i = 0; i < w * h; i++) {
-			fprintf(f, "%d %d %d ", toInt(all_pixels[i].x), toInt(all_pixels[i].y), toInt(all_pixels[i].z));
+		for (int p = num_procs - 1; p > -1; p--) {
+			for (int i = p * chunk*w; i < (p+1)*chunk*w; i++) {
+				fprintf(f, "%d %d %d ", toInt(all_pixels[i].x), toInt(all_pixels[i].y), toInt(all_pixels[i].z));
+			}
 		}
+
 	}
 
 }
