@@ -8,7 +8,9 @@
 #include <string>
 #include <mpi.h>
 #include <exception>
+#include <vector>
 
+using namespace std;
 using namespace std::chrono;
 
 double erand48(unsigned short seed[3]) {
@@ -184,13 +186,15 @@ MPI_Datatype createMPIVec() {
 	return VecType;
 }
 
-void execute(int samples, int my_rank, int num_procs) {
+void execute(int width, int height, int samples, int my_rank, int num_procs) {
 
-	int w = 512, h = 384;	// Image dimensions.
+	int w = width, h = height;	// Image dimensions.
 	int samps = samples;	// Number of samples.
 	
 	int chunk = h / num_procs;
-	int chunk_end = (my_rank + 1) * chunk;
+	int chunk_end;
+
+	chunk_end = (num_procs - (my_rank)) * chunk;
 
 	Ray cam(Vec(50, 52, 295.6), Vec(0, -0.042612, -1).norm()); // Camera position and direction.
 	
@@ -201,8 +205,14 @@ void execute(int samples, int my_rank, int num_procs) {
 
 	MPI_Datatype mpi_vec = createMPIVec();
 
-	for (int y = chunk * my_rank; y < chunk_end; y++) {	// Loop over image rows.
-		
+	//if (my_rank == 0) {
+	//	double wut = h / num_procs;
+	//	std::cout << "chunk = " << chunk << std::endl;
+	//}
+	//std::cout << my_rank << " start = " << chunk* my_rank << " end = " << chunk_end << std::endl;
+
+	for (int y = chunk * (num_procs - (my_rank + 1)); y < chunk_end; y++) {	// Loop over image rows.
+
 		unsigned short Xi[3] = { 0, 0, y * y * y };
 		
 		for (unsigned short x = 0; x < w; x++) { 
@@ -226,13 +236,15 @@ void execute(int samples, int my_rank, int num_procs) {
 		}
 	}
 	
-	Vec *all_pixels;	// Declare datastructure for all pixels
+	vector<Vec> all_pixels;	// Declare datastructure for all pixels
 
 	if (my_rank == 0) {
-		all_pixels = new Vec[w * h];	// Initialize pixel data structure
+		all_pixels.resize(w * h);	// Initialize pixel data structure
 		std::cout << "Commencing gather." << std::endl;		
 	}
-	
+	else {
+
+	}
 	// Gather individual processor pixels into proc 0.
 	MPI_Gather(&my_pixels[0], chunk*w, mpi_vec, &all_pixels[0], chunk*w, mpi_vec, 0, MPI_COMM_WORLD);
 
@@ -242,13 +254,15 @@ void execute(int samples, int my_rank, int num_procs) {
 		FILE *f = fopen("image.ppm", "w"); 
 		fprintf(f, "P3\n%d %d\n%d\n", w, h, 255);
 
-		for (int p = num_procs - 1; p > -1; p--) {
-			for (int i = p * chunk*w; i < (p+1)*chunk*w; i++) {
-				fprintf(f, "%d %d %d ", toInt(all_pixels[i].x), toInt(all_pixels[i].y), toInt(all_pixels[i].z));
+		/*for (int p = num_procs - 1; p > -1; p--) {
+			for (int i = p * chunk*w; i < (p+1) * chunk * w; i++) {
+		*/		
+		for (size_t i = 0; i < w*h; i++)
+		{
+		fprintf(f, "%d %d %d ", toInt(all_pixels[i].x), toInt(all_pixels[i].y), toInt(all_pixels[i].z));
 			}
 		}
 
-	}
 
 }
 
@@ -270,6 +284,9 @@ int main(int argc, char *argv[]) {
 	std::ofstream data;
 	time_point<system_clock> start_time;
 
+	int width = 4096;
+	int hight = 4096;
+
 	if (my_rank == 0) {
 		// Get current time for timings file timestamp.
 		auto time_stamp = duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
@@ -280,7 +297,7 @@ int main(int argc, char *argv[]) {
 
 	int samps = argc == 2 ? atoi(argv[1]) / 4 : 1;
 
-	execute(samps, my_rank, num_procs);
+	execute(width,hight,samps, my_rank, num_procs);
 
 	if (my_rank == 0) {
 		auto end_time = system_clock::now();
