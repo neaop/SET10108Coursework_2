@@ -25,14 +25,15 @@ struct Vec {
 		y = y_;
 		z = z_;
 	}
-	Vec operator+(const Vec &b) const { return Vec(x + b.x, y + b.y, z + b.z);	}
-	Vec operator-(const Vec &b) const { return Vec(x - b.x, y - b.y, z - b.z);	}
-	Vec operator*(double b) const { return Vec(x * b, y * b, z * b);			}
-	Vec mult(const Vec &b) const { return Vec(x * b.x, y * b.y, z * b.z);		}
-	Vec &norm() { return *this = *this * (1 / sqrt(x * x + y * y + z * z));		}
-	double dot(const Vec &b) const {return x * b.x + y * b.y + z * b.z;			}
+	Vec operator+(const Vec &b) const { return Vec(x + b.x, y + b.y, z + b.z); }
+	Vec operator-(const Vec &b) const { return Vec(x - b.x, y - b.y, z - b.z); }
+	Vec operator*(double b) const { return Vec(x * b, y * b, z * b); }
+	Vec mult(const Vec &b) const { return Vec(x * b.x, y * b.y, z * b.z); }
+	Vec &norm() { return *this = *this * (1 / sqrt(x * x + y * y + z * z)); }
+	double dot(const Vec &b) const { return x * b.x + y * b.y + z * b.z; }
 	Vec operator%(Vec &b) {
-		return Vec(y * b.z - z * b.y, z * b.x - x * b.z, x * b.y - y * b.x);	}
+		return Vec(y * b.z - z * b.y, z * b.x - x * b.z, x * b.y - y * b.x);
+	}
 };
 
 // A line with origin and direction.
@@ -60,9 +61,9 @@ struct Sphere {
 		double t, eps = 1e-4;
 		double b = op.dot(r.d);
 		double det = b * b - op.dot(op) + rad * rad;
-		if (det < 0) 
+		if (det < 0)
 			return 0;
-		else 
+		else
 			det = sqrt(det);
 		return (t = b - det) > eps ? t : ((t = b + det) > eps ? t : 0);
 	}
@@ -83,13 +84,13 @@ Sphere spheres[] = {
 };
 
 // Clamp unbounded colour to be between 0 - 255.
-inline double clamp(double x) { 
-	return x < 0 ? 0 : x > 1 ? 1 : x; 
+inline double clamp(double x) {
+	return x < 0 ? 0 : x > 1 ? 1 : x;
 }
 
 // Converts doubles to ints to be saved into .ppm file.
-inline int toInt(double x) { 
-	return int(pow(clamp(x), 1 / 2.2) * 255 + .5); 
+inline int toInt(double x) {
+	return int(pow(clamp(x), 1 / 2.2) * 255 + .5);
 }
 
 // Intersect a ray with the scene.
@@ -190,57 +191,49 @@ void execute(int width, int height, int samples, int my_rank, int num_procs) {
 
 	int w = width, h = height;	// Image dimensions.
 	int samps = samples;	// Number of samples.
-	
+
 	int chunk = h / num_procs;
 	int chunk_end;
 
 	chunk_end = (num_procs - (my_rank)) * chunk;
 
 	Ray cam(Vec(50, 52, 295.6), Vec(0, -0.042612, -1).norm()); // Camera position and direction.
-	
 	Vec cx = Vec(w * .5135 / h);					// X direction increment.
 	Vec cy = (cx % cam.d).norm() * .5135;			// Y direction increment.
 	Vec r;											// Colour samples.
 	Vec *my_pixels = new Vec[w * chunk];			// The image being rendered.
-
 	MPI_Datatype mpi_vec = createMPIVec();
-
-	//if (my_rank == 0) {
-	//	double wut = h / num_procs;
-	//	std::cout << "chunk = " << chunk << std::endl;
-	//}
-	//std::cout << my_rank << " start = " << chunk* my_rank << " end = " << chunk_end << std::endl;
 
 	for (int y = chunk * (num_procs - (my_rank + 1)); y < chunk_end; y++) {	// Loop over image rows.
 
 		unsigned short Xi[3] = { 0, 0, y * y * y };
-		
-		for (unsigned short x = 0; x < w; x++) { 
+
+		for (unsigned short x = 0; x < w; x++) {
 			for (int sy = 0, i = (chunk_end - y - 1) * w + x; sy < 2; sy++) {
-				for (int sx = 0; sx < 2; sx++, r = Vec()) {		
+				for (int sx = 0; sx < 2; sx++, r = Vec()) {
 					for (int s = 0; s < samps; s++) {
 
 						double r1 = 2 * erand48(Xi);
 						double dx = r1 < 1 ? sqrt(r1) - 1 : 1 - sqrt(2 - r1);
 						double r2 = 2 * erand48(Xi);
 						double dy = r2 < 1 ? sqrt(r2) - 1 : 1 - sqrt(2 - r2);
-						
+
 						Vec d = cx * (((sx + .5 + dx) / 2 + x) / w - .5) +
 							cy * (((sy + .5 + dy) / 2 + y) / h - .5) + cam.d; // Compute ray direction
 						r = r + radiance(Ray(cam.o + d * 140, d.norm()), 0, Xi) * (1. / samps);
-					}	
+					}
 					// Camera rays are pushed ^^^^^ forward to start in interior.
 					my_pixels[i] = my_pixels[i] + Vec(clamp(r.x), clamp(r.y), clamp(r.z)) * .25;
 				}
 			}
 		}
 	}
-	
+
 	vector<Vec> all_pixels;	// Declare datastructure for all pixels
 
 	if (my_rank == 0) {
 		all_pixels.resize(w * h);	// Initialize pixel data structure
-		std::cout << "Commencing gather." << std::endl;		
+		std::cout << "Commencing gather." << std::endl;
 	}
 	else {
 
@@ -251,18 +244,13 @@ void execute(int width, int height, int samples, int my_rank, int num_procs) {
 	// Write pixel values to file.
 	if (my_rank == 0) {
 		std::cout << "Drawing image." << std::endl;
-		FILE *f = fopen("image.ppm", "w"); 
+		FILE *f = fopen("image.ppm", "w");
 		fprintf(f, "P3\n%d %d\n%d\n", w, h, 255);
 
-		/*for (int p = num_procs - 1; p > -1; p--) {
-			for (int i = p * chunk*w; i < (p+1) * chunk * w; i++) {
-		*/		
-		for (size_t i = 0; i < w*h; i++)
-		{
-		fprintf(f, "%d %d %d ", toInt(all_pixels[i].x), toInt(all_pixels[i].y), toInt(all_pixels[i].z));
-			}
+		for (size_t i = 0; i < w*h; i++) {
+			fprintf(f, "%d %d %d ", toInt(all_pixels[i].x), toInt(all_pixels[i].y), toInt(all_pixels[i].z));
 		}
-
+	}
 
 }
 
@@ -297,7 +285,7 @@ int main(int argc, char *argv[]) {
 
 	int samps = argc == 2 ? atoi(argv[1]) / 4 : 1;
 
-	execute(width,hight,samps, my_rank, num_procs);
+	execute(width, hight, samps, my_rank, num_procs);
 
 	if (my_rank == 0) {
 		auto end_time = system_clock::now();

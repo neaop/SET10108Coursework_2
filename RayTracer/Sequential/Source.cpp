@@ -6,7 +6,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string>
+#include <vector>
 
+using namespace std;
 using namespace std::chrono;
 
 double erand48(unsigned short seed[3]) {
@@ -165,17 +167,20 @@ Vec radiance(const Ray &r_, int depth_, unsigned short *Xi) {
 	}
 }
 
-void execute(int samples) {
-	int w = 512, h = 384;							// Image dimensions.
+void execute(int width, int height, int samples, string timestamp) {
+	int w = width, h = height;							// Image dimensions.
 	int samps = samples;	// Number of samples.
 	Ray cam(Vec(50, 52, 295.6), Vec(0, -0.042612, -1).norm()); // Camera position and direction.
 	Vec cx = Vec(w * .5135 / h);			// X direction increment.
 	Vec cy = (cx % cam.d).norm() * .5135;	// Y direction increment.
 	Vec r;									// Colour samples.
-	Vec *c = new Vec[w * h];				// The image being rendered.
+
+	vector<Vec> c;
+	c.reserve (w * h);				// The image being rendered.
+
 	for (int y = 0; y < h; y++) {			// Loop over image rows.
 											// Print progress.
-		fprintf(stderr, "\rRendering (%d spp) %5.2f%%", samps * 4, 100. * y / (h - 1));
+		//fprintf(stderr, "\rRendering (%d spp) %5.2f%%", samps * 4, 100. * y / (h - 1));
 		unsigned short Xi[3] = { 0, 0, y * y * y };
 		for (unsigned short x = 0; x < w; x++)	// Loop over columns
 
@@ -193,32 +198,34 @@ void execute(int samples) {
 					c[i] = c[i] + Vec(clamp(r.x), clamp(r.y), clamp(r.z)) * .25;
 				}
 	}
-	FILE *f = fopen("image.ppm", "w"); // Write image to PPM file.
+
+	FILE *f = fopen(timestamp.c_str(), "w"); // Write image to PPM file.
 	fprintf(f, "P3\n%d %d\n%d\n", w, h, 255);
 	for (int i = 0; i < w * h; i++)
 		fprintf(f, "%d %d %d ", toInt(c[i].x), toInt(c[i].y), toInt(c[i].z));
-
 }
 
 int main(int argc, char *argv[]) {
-	// Get current time for  timings file timestamp.
+	int samps = argc == 2 ? atoi(argv[1]) / 4 : 1;
+	string str(argv[1]);
+	// Get current time for file timestamp.
 	auto time_stamp = duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
 	// Create timings file.
-	std::ofstream data("./Data/sequential" + std::to_string(time_stamp) + ".csv", std::ofstream::out);
+	ofstream data("./Data/sequential" +  str + "SpP" + to_string(time_stamp) + ".csv", ofstream::out);
 
 	// Loop 100 times
 	for (int iteration = 0; iteration < 100; ++iteration) {
 		// Output current itteration.
-		std::cout << "Iteration: " << iteration << std::endl;
+		cout << "Iteration: " << iteration << endl;
 		auto start_time = system_clock::now();
-		
+
 		int samps = argc == 2 ? atoi(argv[1]) / 4 : 1;
-		execute(samps);
+		execute(512, 512, samps, to_string(time_stamp));
 
 		auto end_time = system_clock::now();
 		auto total_time =
 			duration_cast<milliseconds>(end_time - start_time).count();
-		data << iteration << "," << total_time << std::endl;
+		data << iteration << "," << total_time << endl;
 	}
 	data.flush();
 	data.close();
