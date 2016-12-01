@@ -38,29 +38,29 @@ struct Vec {
 
 // A line with origin and direction.
 struct Ray {
-	Vec o, d;
-	Ray(Vec o_, Vec d_) : o(o_), d(d_) {}
+	Vec origin, direction;
+	Ray(Vec o_, Vec d_) : origin(o_), direction(d_) {}
 };
 
 // Material types.
-enum Refl_t { DIFF, SPEC, REFR };
+enum reflection_type { DIFFUSE, SPECULAR, REFRACTIVE };
 
 // Sphere structure - takes a radius, position and colour.
 struct Sphere {
-	double rad;  // radius
-	Vec p, e, c; // position, emission, color
-	Refl_t refl; // reflection type (DIFFuse, SPECular, REFRactive)
+	double radius;  // radius
+	Vec position, emission, color; // position, emission, color
+	reflection_type reflection; // reflection type (DIFFuse, SPECular, REFRactive)
 
-	Sphere(double rad_, Vec p_, Vec e_, Vec c_, Refl_t refl_)
-		: rad(rad_), p(p_), e(e_), c(c_), refl(refl_) {}
+	Sphere(double rad_, Vec p_, Vec e_, Vec c_, reflection_type refl_)
+		: radius(rad_), position(p_), emission(e_), color(c_), reflection(refl_) {}
 
 	// Returns distance, 0 if nohit.
 	double intersect(const Ray &r) const {
 		// Solve t^2*d.d + 2*t*(o-p).d + (o-p).(o-p)-R^2 = 0.
-		Vec op = p - r.o;
+		Vec op = position - r.origin;
 		double t, eps = 1e-4;
-		double b = op.dot(r.d);
-		double det = b * b - op.dot(op) + rad * rad;
+		double b = op.dot(r.direction);
+		double det = b * b - op.dot(op) + radius * radius;
 		if (det < 0)
 			return 0;
 		else
@@ -72,15 +72,15 @@ struct Sphere {
 // Scene to be rendered - made entierly of spheres.
 Sphere spheres[] = {
 	// Scene: radius, position, emission, color, material.
-	Sphere(1e5, Vec(1e5 + 1, 40.8, 81.6),	Vec(), Vec(.75, .25, .25),	DIFF), // Left
-	Sphere(1e5, Vec(-1e5 + 99, 40.8, 81.6), Vec(), Vec(.25, .25, .75),	DIFF), // Rght
-	Sphere(1e5, Vec(50, 40.8, 1e5),			Vec(), Vec(.75, .75, .75),	DIFF), // Back
-	Sphere(1e5, Vec(50, 40.8, -1e5 + 170),	Vec(), Vec(),				DIFF), // Frnt
-	Sphere(1e5, Vec(50, 1e5, 81.6),			Vec(), Vec(.75, .75, .75),	DIFF), // Botm
-	Sphere(1e5, Vec(50, -1e5 + 81.6, 81.6), Vec(), Vec(.75, .75, .75),	DIFF), // Top
-	Sphere(16.5, Vec(27, 16.5, 47),			Vec(), Vec(1, 1, 1)*.999,	SPEC), // Mirr
-	Sphere(16.5, Vec(73, 16.5, 78),			Vec(), Vec(1, 1, 1)*.999,	REFR), // Glas
-	Sphere(600, Vec(50, 681.6 - .27, 81.6), Vec(12, 12, 12),	Vec(),	DIFF)  // Lite
+	Sphere(1e5, Vec(1e5 + 1, 40.8, 81.6),	Vec(), Vec(.75, .25, .25),	DIFFUSE), // Left
+	Sphere(1e5, Vec(-1e5 + 99, 40.8, 81.6), Vec(), Vec(.25, .25, .75),	DIFFUSE), // Rght
+	Sphere(1e5, Vec(50, 40.8, 1e5),			Vec(), Vec(.75, .75, .75),	DIFFUSE), // Back
+	Sphere(1e5, Vec(50, 40.8, -1e5 + 170),	Vec(), Vec(),				DIFFUSE), // Frnt
+	Sphere(1e5, Vec(50, 1e5, 81.6),			Vec(), Vec(.75, .75, .75),	DIFFUSE), // Botm
+	Sphere(1e5, Vec(50, -1e5 + 81.6, 81.6), Vec(), Vec(.75, .75, .75),	DIFFUSE), // Top
+	Sphere(16.5, Vec(27, 16.5, 47),			Vec(), Vec(1, 1, 1)*.999,	SPECULAR), // Mirr
+	Sphere(16.5, Vec(73, 16.5, 78),			Vec(), Vec(1, 1, 1)*.999,	REFRACTIVE), // Glas
+	Sphere(600, Vec(50, 681.6 - .27, 81.6), Vec(12, 12, 12),	Vec(),	DIFFUSE)  // Lite
 };
 
 // Clamp unbounded colour to be between 0 - 255.
@@ -121,16 +121,16 @@ Vec radiance(const Ray &r_, int depth_, unsigned short *Xi) {
 		if (!intersect(r, t, id))
 			return cl;	// if miss, return black
 		const Sphere &obj = spheres[id];	// the hit object
-		Vec x = r.o + r.d * t, n = (x - obj.p).norm(), nl = n.dot(r.d) < 0 ? n : n * -1, f = obj.c;
+		Vec x = r.origin + r.direction * t, n = (x - obj.position).norm(), nl = n.dot(r.direction) < 0 ? n : n * -1, f = obj.color;
 		double p = f.x > f.y && f.x > f.z ? f.x : f.y > f.z ? f.y : f.z;	// max refl
-		cl = cl + cf.mult(obj.e);
+		cl = cl + cf.mult(obj.emission);
 		if (++depth > 5)
 			if (erand48(Xi) < p)
 				f = f * (1 / p);
 			else
 				return cl;	// R.R.
 		cf = cf.mult(f);
-		if (obj.refl == DIFF) {	// Ideal DIFFUSE reflection
+		if (obj.reflection == DIFFUSE) {	// Ideal DIFFUSE reflection
 			double r1 = 2 * M_PI * erand48(Xi), r2 = erand48(Xi), r2s = sqrt(r2);
 			Vec w = nl, u = ((fabs(w.x) > .1 ? Vec(0, 1) : Vec(1)) % w).norm(), v = w % u;
 			Vec d = (u * cos(r1) * r2s + v * sin(r1) * r2s + w * sqrt(1 - r2)).norm();
@@ -138,14 +138,14 @@ Vec radiance(const Ray &r_, int depth_, unsigned short *Xi) {
 			r = Ray(x, d);
 			continue;
 		}
-		else if (obj.refl == SPEC) { // Ideal SPECULAR reflection
+		else if (obj.reflection == SPECULAR) { // Ideal SPECULAR reflection
 									 // return obj.e + f.mult(radiance(Ray(x,r.d-n*2*n.dot(r.d)),depth,Xi));
-			r = Ray(x, r.d - n * 2 * n.dot(r.d));
+			r = Ray(x, r.direction - n * 2 * n.dot(r.direction));
 			continue;
 		}
-		Ray reflRay(x, r.d - n * 2 * n.dot(r.d)); // Ideal dielectric REFRACTION
+		Ray reflRay(x, r.direction - n * 2 * n.dot(r.direction)); // Ideal dielectric REFRACTION
 		bool into = n.dot(nl) > 0;                // Ray from outside going in?
-		double nc = 1, nt = 1.5, nnt = into ? nc / nt : nt / nc, ddn = r.d.dot(nl), cos2t;
+		double nc = 1, nt = 1.5, nnt = into ? nc / nt : nt / nc, ddn = r.direction.dot(nl), cos2t;
 		if ((cos2t = 1 - nnt * nnt * (1 - ddn * ddn)) <
 			0) { // Total internal reflection
 				 // return obj.e + f.mult(radiance(reflRay,depth,Xi));
@@ -153,7 +153,7 @@ Vec radiance(const Ray &r_, int depth_, unsigned short *Xi) {
 			continue;
 		}
 		Vec tdir =
-			(r.d * nnt - n * ((into ? 1 : -1) * (ddn * nnt + sqrt(cos2t)))).norm();
+			(r.direction * nnt - n * ((into ? 1 : -1) * (ddn * nnt + sqrt(cos2t)))).norm();
 		double a = nt - nc, b = nt + nc, R0 = a * a / (b * b), c = 1 - (into ? -ddn : tdir.dot(n));
 		double Re = R0 + (1 - R0) * c * c * c * c * c, Tr = 1 - Re, P = .25 + .5 * Re, RP = Re / P, TP = Tr / (1 - P);
 		// return obj.e + f.mult(erand48(Xi)<P ?
@@ -199,7 +199,7 @@ void execute(int width, int height, int samples, int my_rank, int num_procs) {
 
 	Ray cam(Vec(50, 52, 295.6), Vec(0, -0.042612, -1).norm()); // Camera position and direction.
 	Vec cx = Vec(w * .5135 / h);					// X direction increment.
-	Vec cy = (cx % cam.d).norm() * .5135;			// Y direction increment.
+	Vec cy = (cx % cam.direction).norm() * .5135;			// Y direction increment.
 	Vec r;											// Colour samples.
 	Vec *my_pixels = new Vec[w * chunk];			// The image being rendered.
 	MPI_Datatype mpi_vec = createMPIVec();
@@ -219,8 +219,8 @@ void execute(int width, int height, int samples, int my_rank, int num_procs) {
 						double dy = r2 < 1 ? sqrt(r2) - 1 : 1 - sqrt(2 - r2);
 
 						Vec d = cx * (((sx + .5 + dx) / 2 + x) / w - .5) +
-							cy * (((sy + .5 + dy) / 2 + y) / h - .5) + cam.d; // Compute ray direction
-						r = r + radiance(Ray(cam.o + d * 140, d.norm()), 0, Xi) * (1. / samps);
+							cy * (((sy + .5 + dy) / 2 + y) / h - .5) + cam.direction; // Compute ray direction
+						r = r + radiance(Ray(cam.origin + d * 140, d.norm()), 0, Xi) * (1. / samps);
 					}
 					// Camera rays are pushed ^^^^^ forward to start in interior.
 					my_pixels[i] = my_pixels[i] + Vec(clamp(r.x), clamp(r.y), clamp(r.z)) * .25;
@@ -272,8 +272,8 @@ int main(int argc, char *argv[]) {
 	std::ofstream data;
 	time_point<system_clock> start_time;
 
-	int width = 4096;
-	int hight = 4096;
+	int width = 512;
+	int hight = 512;
 
 	if (my_rank == 0) {
 		// Get current time for timings file timestamp.

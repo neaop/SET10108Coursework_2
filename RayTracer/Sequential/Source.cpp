@@ -11,56 +11,60 @@
 using namespace std;
 using namespace std::chrono;
 
+// A simple random number generator.
 double erand48(unsigned short seed[3]) {
 	return (double)rand() / (double)RAND_MAX;
 }
 
-// Structure to hold position of points 
+// Vec structure to hold corrdinate or r, g, b color values 
 struct Vec {
 	double x, y, z;
+
+	// Vec constructor.
 	Vec(double x_ = 0, double y_ = 0, double z_ = 0) {
 		x = x_;
 		y = y_;
 		z = z_;
 	}
+
+	// Vec methods.
 	Vec operator+(const Vec &b) const { return Vec(x + b.x, y + b.y, z + b.z); }
 	Vec operator-(const Vec &b) const { return Vec(x - b.x, y - b.y, z - b.z); }
 	Vec operator*(double b) const { return Vec(x * b, y * b, z * b); }
 	Vec mult(const Vec &b) const { return Vec(x * b.x, y * b.y, z * b.z); }
 	Vec &norm() { return *this = *this * (1 / sqrt(x * x + y * y + z * z)); }
-	double dot(const Vec &b) const {
-		return x * b.x + y * b.y + z * b.z;
-	}
-	Vec operator%(Vec &b) {
-		return Vec(y * b.z - z * b.y, z * b.x - x * b.z, x * b.y - y * b.x);
-	}
+	double dot(const Vec &b) const { return x * b.x + y * b.y + z * b.z; }
+	Vec operator%(Vec &b) { return Vec(y * b.z - z * b.y, z * b.x - x * b.z, x * b.y - y * b.x); }
 };
 
-// A line with origin and direction.
+// A line with an origin and direction.
 struct Ray {
-	Vec o, d;
-	Ray(Vec o_, Vec d_) : o(o_), d(d_) {}
+	Vec origin, direction;
+	Ray(Vec origin_, Vec direction_) : origin(origin_), direction(direction_) {}
 };
 
-// Material types.
-enum Refl_t { DIFF, SPEC, REFR };
+// Sphere material types.
+enum reflection_type { DIFFUSE, SPECULAR, REFRACTIVE };
 
 // Sphere structure - takes a radius, position and colour.
 struct Sphere {
-	double rad;  // radius
-	Vec p, e, c; // position, emission, color
-	Refl_t refl; // reflection type (DIFFuse, SPECular, REFRactive)
+	double radius;
+	Vec position, emission, color;
+	reflection_type reflection;
 
-	Sphere(double rad_, Vec p_, Vec e_, Vec c_, Refl_t refl_)
-		: rad(rad_), p(p_), e(e_), c(c_), refl(refl_) {}
+	// Sphere constructor.
+	Sphere(double radius_, Vec position_, Vec emission_, Vec color_, reflection_type reflection_)
+		: radius(radius_), position(position_), emission(emission_), color(color_), reflection(reflection_) {}
 
-	// Returns distance, 0 if nohit.
-	double intersect(const Ray &r) const {
+	// Returns distance of a ray intersection - 0 on a miss.
+	double intersect(const Ray &ray) const {
 		// Solve t^2*d.d + 2*t*(o-p).d + (o-p).(o-p)-R^2 = 0.
-		Vec op = p - r.o;
-		double t, eps = 1e-4;
-		double b = op.dot(r.d);
-		double det = b * b - op.dot(op) + rad * rad;
+		Vec op = position - ray.origin;
+		double t;
+		double eps = 1e-4;
+		double b = op.dot(ray.direction);
+		double det = b * b - op.dot(op) + radius * radius;
+
 		if (det < 0) {
 			return 0;
 		}
@@ -74,59 +78,72 @@ struct Sphere {
 
 // Scene to be rendered - made entierly of spheres.
 Sphere spheres[] = {
-	// Scene: radius, position, emission, color, material.
-	Sphere(1e5, Vec(1e5 + 1, 40.8, 81.6),	Vec(), Vec(.75, .25, .25),	DIFF), // Left
-	Sphere(1e5, Vec(-1e5 + 99, 40.8, 81.6), Vec(), Vec(.25, .25, .75),	DIFF), // Rght
-	Sphere(1e5, Vec(50, 40.8, 1e5),			Vec(), Vec(.75, .75, .75),	DIFF), // Back
-	Sphere(1e5, Vec(50, 40.8, -1e5 + 170),	Vec(), Vec(),				DIFF), // Frnt
-	Sphere(1e5, Vec(50, 1e5, 81.6),			Vec(), Vec(.75, .75, .75),	DIFF), // Botm
-	Sphere(1e5, Vec(50, -1e5 + 81.6, 81.6), Vec(), Vec(.75, .75, .75),	DIFF), // Top
-	Sphere(16.5, Vec(27, 16.5, 47),			Vec(), Vec(1, 1, 1)*.999,	SPEC), // Mirr
-	Sphere(16.5, Vec(73, 16.5, 78),			Vec(), Vec(1, 1, 1)*.999,	REFR), // Glas
-	Sphere(600, Vec(50, 681.6 - .27, 81.6), Vec(12, 12, 12),	Vec(),	DIFF)  // Lite
+	// Radius, position, emission, color, material.
+	Sphere(1e5, Vec(1e5 + 1, 40.8, 81.6),	Vec(), Vec(.75, .25, .25),	DIFFUSE),	// Left
+	Sphere(1e5, Vec(-1e5 + 99, 40.8, 81.6), Vec(), Vec(.25, .25, .75),	DIFFUSE),	// Rght
+	Sphere(1e5, Vec(50, 40.8, 1e5),			Vec(), Vec(.75, .75, .75),	DIFFUSE),	// Back
+	Sphere(1e5, Vec(50, 40.8, -1e5 + 170),	Vec(), Vec(),				DIFFUSE),	// Frnt
+	Sphere(1e5, Vec(50, 1e5, 81.6),			Vec(), Vec(.75, .75, .75),	DIFFUSE),	// Botm
+	Sphere(1e5, Vec(50, -1e5 + 81.6, 81.6), Vec(), Vec(.75, .75, .75),	DIFFUSE),	// Top
+	Sphere(16.5, Vec(27, 16.5, 47),			Vec(), Vec(1, 1, 1)*.999,	SPECULAR),	// Mirr
+	Sphere(16.5, Vec(73, 16.5, 78),			Vec(), Vec(1, 1, 1)*.999,	REFRACTIVE),// Glas
+	Sphere(600, Vec(50, 681.6 - .27, 81.6), Vec(12, 12, 12),	Vec(),	DIFFUSE)	// Lite
 };
 
-// Clamp unbounded colour to be between 0 - 255.
+// Clamp unbounded colours to be within scale.
 inline double clamp(double x) { return x < 0 ? 0 : x > 1 ? 1 : x; }
 
-// Converts doubles to ints to be saved into .ppm file.
+// Converts doubles to ints within pixel color scale (255).
 inline int toInt(double x) { return int(pow(clamp(x), 1 / 2.2) * 255 + .5); }
 
-// Intersect a ray with the scene.
-inline bool intersect(const Ray &r, double &t, int &id) {
+// Intersect a ray with the scene - return true if it hits anything.
+inline bool intersect(const Ray &ray, double &t, int &id) {
 	double n = sizeof(spheres) / sizeof(Sphere);
-	double d;
 	double inf = t = 1e20;
+	double d;
+
 	for (int i = int(n); i--;)
-		if ((d = spheres[i].intersect(r)) && d < t) {
+		if ((d = spheres[i].intersect(ray)) && d < t) {
 			t = d;
 			id = i;
 		}
 	return t < inf;
+
 }
 
 // Computes the radiance estimate along a ray.
 Vec radiance(const Ray &r_, int depth_, unsigned short *Xi) {
-	double t;   // distance to intersection
-	int id = 0; // id of intersected object
+	double t;	// Distance to intersection
+	int id = 0;	// ID of intersected object
 	Ray r = r_;
 	int depth = depth_;
-	Vec cl(0, 0, 0); // accumulated color
-	Vec cf(1, 1, 1); // accumulated reflectance
+	Vec cl(0, 0, 0);	// Accumulated color
+	Vec cf(1, 1, 1);	// Accumulated reflectance
+	
 	while (1) {
-		if (!intersect(r, t, id))
-			return cl;                     // if miss, return black
-		const Sphere &obj = spheres[id]; // the hit object
-		Vec x = r.o + r.d * t, n = (x - obj.p).norm(), nl = n.dot(r.d) < 0 ? n : n * -1, f = obj.c;
-		double p = f.x > f.y && f.x > f.z ? f.x : f.y > f.z ? f.y : f.z; // max refl
-		cl = cl + cf.mult(obj.e);
-		if (++depth > 5)
-			if (erand48(Xi) < p)
+		// If ray misses - return black.
+		if (!intersect(r, t, id)) {	
+			return cl;
+		}
+
+		const Sphere &obj = spheres[id];	// Object hit by ray.
+		Vec x = r.origin + r.direction * t, n = (x - obj.position).norm();
+		Vec nl = n.dot(r.direction) < 0 ? n : n * -1;
+		Vec f = obj.color;
+		double p = f.x > f.y && f.x > f.z ? f.x : f.y > f.z ? f.y : f.z;	// Max refl
+		cl = cl + cf.mult(obj.emission);
+
+		if (++depth > 5) {
+			if (erand48(Xi) < p) {
 				f = f * (1 / p);
-			else
+			}
+			else {
 				return cl; // R.R.
+			}
+		}
+
 		cf = cf.mult(f);
-		if (obj.refl == DIFF) { // Ideal DIFFUSE reflection
+		if (obj.reflection == DIFFUSE) { // Ideal DIFFUSE reflection
 			double r1 = 2 * M_PI * erand48(Xi), r2 = erand48(Xi), r2s = sqrt(r2);
 			Vec w = nl, u = ((fabs(w.x) > .1 ? Vec(0, 1) : Vec(1)) % w).norm(), v = w % u;
 			Vec d = (u * cos(r1) * r2s + v * sin(r1) * r2s + w * sqrt(1 - r2)).norm();
@@ -134,14 +151,14 @@ Vec radiance(const Ray &r_, int depth_, unsigned short *Xi) {
 			r = Ray(x, d);
 			continue;
 		}
-		else if (obj.refl == SPEC) { // Ideal SPECULAR reflection
+		else if (obj.reflection == SPECULAR) { // Ideal SPECULAR reflection
 	   // return obj.e + f.mult(radiance(Ray(x,r.d-n*2*n.dot(r.d)),depth,Xi));
-			r = Ray(x, r.d - n * 2 * n.dot(r.d));
+			r = Ray(x, r.direction - n * 2 * n.dot(r.direction));
 			continue;
 		}
-		Ray reflRay(x, r.d - n * 2 * n.dot(r.d)); // Ideal dielectric REFRACTION
+		Ray reflRay(x, r.direction - n * 2 * n.dot(r.direction)); // Ideal dielectric REFRACTION
 		bool into = n.dot(nl) > 0;                // Ray from outside going in?
-		double nc = 1, nt = 1.5, nnt = into ? nc / nt : nt / nc, ddn = r.d.dot(nl), cos2t;
+		double nc = 1, nt = 1.5, nnt = into ? nc / nt : nt / nc, ddn = r.direction.dot(nl), cos2t;
 		if ((cos2t = 1 - nnt * nnt * (1 - ddn * ddn)) <
 			0) { // Total internal reflection
 				 // return obj.e + f.mult(radiance(reflRay,depth,Xi));
@@ -149,7 +166,7 @@ Vec radiance(const Ray &r_, int depth_, unsigned short *Xi) {
 			continue;
 		}
 		Vec tdir =
-			(r.d * nnt - n * ((into ? 1 : -1) * (ddn * nnt + sqrt(cos2t)))).norm();
+			(r.direction * nnt - n * ((into ? 1 : -1) * (ddn * nnt + sqrt(cos2t)))).norm();
 		double a = nt - nc, b = nt + nc, R0 = a * a / (b * b), c = 1 - (into ? -ddn : tdir.dot(n));
 		double Re = R0 + (1 - R0) * c * c * c * c * c, Tr = 1 - Re, P = .25 + .5 * Re, RP = Re / P, TP = Tr / (1 - P);
 		// return obj.e + f.mult(erand48(Xi)<P ?
@@ -165,68 +182,80 @@ Vec radiance(const Ray &r_, int depth_, unsigned short *Xi) {
 		}
 		continue;
 	}
+
 }
 
-void execute(int width, int height, int samples, string timestamp) {
-	int w = width, h = height;							// Image dimensions.
-	int samps = samples;	// Number of samples.
-	Ray cam(Vec(50, 52, 295.6), Vec(0, -0.042612, -1).norm()); // Camera position and direction.
-	Vec cx = Vec(w * .5135 / h);			// X direction increment.
-	Vec cy = (cx % cam.d).norm() * .5135;	// Y direction increment.
-	Vec r;									// Colour samples.
+// Execute ray tracing.
+void execute(int w, int h, int samps, string timestamp) {
+	int width = w, height = h;										// Image dimensions.
+	int no_samps = samps;											// Number of samples.
+	Ray camera(Vec(50, 52, 295.6), Vec(0, -0.042612, -1).norm());	// Camera position and direction.
+	Vec cam_x = Vec(width * .5135 / height);						// X direction increment.
+	Vec cam_y = (cam_x % camera.direction).norm() * .5135;			// Y direction increment.
+	Vec color_sample;												// Colour samples.
+	vector<Vec> pixel_colors;										// Vector of color values.
+	pixel_colors.reserve(width * height);							// The image being rendered.
 
-	vector<Vec> c;
-	c.reserve (w * h);				// The image being rendered.
-
-	for (int y = 0; y < h; y++) {			// Loop over image rows.
-											// Print progress.
-		//fprintf(stderr, "\rRendering (%d spp) %5.2f%%", samps * 4, 100. * y / (h - 1));
+	// Loop over image rows.
+	for (int y = 0; y < height; y++) {
 		unsigned short Xi[3] = { 0, 0, y * y * y };
-		for (unsigned short x = 0; x < w; x++)	// Loop over columns
-
-			for (int sy = 0, i = (h - y - 1) * w + x; sy < 2; sy++)	// 2x2 subpixel rows
-				for (int sx = 0; sx < 2; sx++, r = Vec()) {			// 2x2 subpixel cols
-					for (int s = 0; s < samps; s++) {				// For number of samples.
+		// Loop over columns.
+		for (unsigned short x = 0; x < width; x++) {
+			// 2x2 subpixel rows.
+			for (int sy = 0, i = (height - y - 1) * width + x; sy < 2; sy++) {
+				// 2x2 subpixel cols.
+				for (int sx = 0; sx < 2; sx++, color_sample = Vec()) {
+					// For number of samples.
+					for (int s = 0; s < no_samps; s++) {
 						double r1 = 2 * erand48(Xi), dx = r1 < 1 ? sqrt(r1) - 1 : 1 - sqrt(2 - r1);
 						double r2 = 2 * erand48(Xi), dy = r2 < 1 ? sqrt(r2) - 1 : 1 - sqrt(2 - r2);
-						// Compute ray direction
-						Vec d = cx * (((sx + .5 + dx) / 2 + x) / w - .5) +
-							cy * (((sy + .5 + dy) / 2 + y) / h - .5) + cam.d;
-
-						r = r + radiance(Ray(cam.o + d * 140, d.norm()), 0, Xi) * (1. / samps);
-					} // Camera rays are pushed ^^^^^ forward to start in interior.
-					c[i] = c[i] + Vec(clamp(r.x), clamp(r.y), clamp(r.z)) * .25;
+						// Compute ray direction.
+						Vec cam_direction = cam_x * (((sx + .5 + dx) / 2 + x) / width - .5) +
+							cam_y * (((sy + .5 + dy) / 2 + y) / height - .5) + camera.direction;
+						color_sample = color_sample + radiance(Ray(camera.origin + cam_direction * 140, cam_direction.norm()), 0, Xi) * (1. / no_samps);
+					}
+					// Camera rays are pushed forward to start in interior.
+					pixel_colors[i] = pixel_colors[i] + Vec(clamp(color_sample.x), clamp(color_sample.y), clamp(color_sample.z)) * .25;
 				}
+			}
+		}
+	}
+	// Print pixels into .ppm file.
+	FILE *f = fopen(timestamp.c_str(), "w");
+	fprintf(f, "P3\n%d %d\n%d\n", width, height, 255);
+	for (int i = 0; i < width * height; i++) {
+		fprintf(f, "%d %d %d ", toInt(pixel_colors[i].x), toInt(pixel_colors[i].y), toInt(pixel_colors[i].z));
 	}
 
-	FILE *f = fopen(timestamp.c_str(), "w"); // Write image to PPM file.
-	fprintf(f, "P3\n%d %d\n%d\n", w, h, 255);
-	for (int i = 0; i < w * h; i++)
-		fprintf(f, "%d %d %d ", toInt(c[i].x), toInt(c[i].y), toInt(c[i].z));
 }
 
 int main(int argc, char *argv[]) {
-	int samps = argc == 2 ? atoi(argv[1]) / 4 : 1;
-	string str(argv[1]);
+	string samp_no_str(argv[1]);
 	// Get current time for file timestamp.
-	auto time_stamp = duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
-	// Create timings file.
-	ofstream data("./Data/sequential" +  str + "SpP" + to_string(time_stamp) + ".csv", ofstream::out);
+	auto time_stamp =to_string(duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count());
+	// Create file for iteration timings.
+	ofstream data("./Data/sequential" + samp_no_str + "SpP" + time_stamp + ".csv", ofstream::out);
 
-	// Loop 100 times
-	for (int iteration = 0; iteration < 100; ++iteration) {
+	// Loop for 100 itterations.
+	for (int iteration = 0; iteration < 1; ++iteration) {
 		// Output current itteration.
 		cout << "Iteration: " << iteration << endl;
+		// Get start time. 
 		auto start_time = system_clock::now();
-
+		// Cacluate number of samples per pixel.
 		int samps = argc == 2 ? atoi(argv[1]) / 4 : 1;
-		execute(512, 512, samps, to_string(time_stamp));
-
+		// Execute ray trace.
+		execute(512, 512, samps, time_stamp);
+		// Get end time.
 		auto end_time = system_clock::now();
-		auto total_time =
-			duration_cast<milliseconds>(end_time - start_time).count();
+		// Calculate total time taken.
+		auto total_time = duration_cast<milliseconds>(end_time - start_time).count();
+		// Output time taken to file.
 		data << iteration << "," << total_time << endl;
 	}
+	// File clean up.
 	data.flush();
 	data.close();
+
+	return 0;
 }
