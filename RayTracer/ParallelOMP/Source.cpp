@@ -246,7 +246,7 @@ int main(int argc, char *argv[]) {
   // Get current time for file timestamp.
   auto time_stamp = to_string(duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count());
   // Create file for iteration timings.
-  ofstream data("./Data/parallelOMP" + samp_no_str + "SpP" + time_stamp + ".csv", ofstream::out);
+  ofstream data("./Data/parallelOMP_4D1_" + samp_no_str + "SPP_" + time_stamp + ".csv", ofstream::out);
 
   // Loop for 100 itterations.
   for (int iteration = 0; iteration < 100; ++iteration) {
