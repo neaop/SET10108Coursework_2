@@ -204,7 +204,7 @@ void execute(int w, int h, int samp, string time_stamp) {
   vector<Vec> pixel_colors;                                     // Vector of color values.
   pixel_colors.reserve(width * height);                         // The image being rendered.
 
-#pragma omp parallel for num_threads(4) schedule(dynamic, 1) private(color_sample)
+#pragma omp parallel for num_threads(16) schedule(static) private(color_sample)
   // Loop over image rows.
   for (int y = 0; y < height; y++) {
     unsigned short Xi[3] = {0, 0, y * y * y};
@@ -246,7 +246,7 @@ int main(int argc, char *argv[]) {
   // Get current time for file timestamp.
   auto time_stamp = to_string(duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count());
   // Create file for iteration timings.
-  ofstream data("./Data/parallelOMP_4D1_" + samp_no_str + "SPP_" + time_stamp + ".csv", ofstream::out);
+  ofstream data("./Data/parallelOMP_16S_" + samp_no_str + "SPP_" + time_stamp + ".csv", ofstream::out);
 
   // Loop for 100 itterations.
   for (int iteration = 0; iteration < 100; ++iteration) {
