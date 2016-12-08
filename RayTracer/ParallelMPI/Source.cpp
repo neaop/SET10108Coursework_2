@@ -275,86 +275,62 @@ void execute(int width, int height, int samples, string time_stamp, int my_rank,
   }
 }
 
+int get_host_num(int my_rank, int num_procs) {
+  char processor_name[MPI_MAX_PROCESSOR_NAME];
+  int name_len;
+  MPI_Get_processor_name(processor_name, &name_len);
+
+  if (my_rank != 0) {
+    MPI_Send(processor_name, MPI_MAX_PROCESSOR_NAME, MPI_CHAR, 0, 0, MPI_COMM_WORLD);
+  }
+
+  else {
+    set<string> names;
+    names.insert(processor_name);
+    char temp_name[MPI_MAX_PROCESSOR_NAME];
+
+    for (int i = 1; i < num_procs; ++i) {
+      MPI_Recv(&temp_name[0], MPI_MAX_PROCESSOR_NAME, MPI_CHAR, i, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+      names.insert(temp_name);
+    }
+    return names.size();
+  }
+}
+
 int main(int argc, char *argv[]) {
 
-	// Initialise MPI.
-	int num_procs, my_rank;
-	auto result = MPI_Init(&argc, &argv);
+  // Initialise MPI.
+  int num_procs, my_rank;
+  auto result = MPI_Init(&argc, &argv);
 
-	if (result != MPI_SUCCESS) {
-		MPI_Abort(MPI_COMM_WORLD, result);
-		return -1;
-	}
+  if (result != MPI_SUCCESS) {
+    MPI_Abort(MPI_COMM_WORLD, result);
+    return -1;
+  }
 
-	// Get MPI info.
-	MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
-	MPI_Comm_rank(MPI_COMM_WORLD, &my_rank);
+  // Get MPI info.
+  MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
+  MPI_Comm_rank(MPI_COMM_WORLD, &my_rank);
 
-	std::ofstream data;
-	time_point<system_clock> start_time;
+  int hosts = get_host_num(my_rank, num_procs);
+  if (my_rank == 0) {
+    cout << hosts << endl;
+  }
 
-	int width = 512;
-	int hight = 512;
-
-	char processor_name[MPI_MAX_PROCESSOR_NAME];
-	int name_len;
-	MPI_Get_processor_name(processor_name, &name_len);
-
-	//vector<char*> names;
-
-	/*string my_chars = "ab";
-
-	vector<string> receive_data;
-	if (my_rank == 0)
-	{
-		receive_data.resize(2);
-		/*receive_data[0].resize(4);
-		receive_data[1].resize(2);
-	}
-
-	cout << "echo chars" << endl;
-	cout << &my_chars[0] << endl;
-
-	char send[2];
-	strcpy(send, my_chars.c_str());
-	MPI
-	MPI_Gather(&send[0], 2, MPI_CHAR, &receive_data[0], 2, MPI_CHAR, 0, MPI_COMM_WORLD);
-	if (my_rank == 0)
-	{
-		  for (int i = 0; i < receive_data.size(); ++i) {
-			  cout << "Im done" << receive_data[i] << "\n";
-		  }
-	}*/
-
-	MPI_Info inf;
-	char wut[2];
-	itoa(my_rank, wut, 10);
-	cout << "prekey: " << wut << " MyPro: " << processor_name << endl;
-	MPI_Info_create(&inf);
-	MPI_Info_set(inf, wut, processor_name);
-
-	MPI_Barrier(MPI_COMM_WORLD);
-	if (my_rank == 0) {
-		char value[MPI_MAX_PROCESSOR_NAME];
-		int flag;
-		char tmp[2];
-		for (int i = 0; i < num_procs; ++i) {
-			itoa(i, tmp, 10);
-			cout << "key: " << tmp << endl;
-			MPI_Info_get(inf, tmp, MPI_MAX_PROCESSOR_NAME, value, &flag);
-			cout << value << endl;
-		}
-	}
-
-
-	MPI_Info_free(&inf);
+  std::ofstream data;
+  time_point<system_clock> start_time;
 
   if (my_rank == 0) {
+	  string samp_no_str(argv[1]);
 
     // Get current time for timings file timestamp.
     auto time_stamp = to_string(duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count());
     // Create timings file.
-    ofstream data("./Data/parallel_MPI_" + time_stamp + ".csv", ofstream::out);
+
+	stringstream ss;
+	ss << "./Data/parallel_MPI_" << hosts << "H" << num_procs << "N_" << samp_no_str << "SPP" << time_stamp << ".csv";
+	string file_name = ss.str();
+    ofstream data(file_name, ofstream::out);
     start_time = system_clock::now();
   }
 
