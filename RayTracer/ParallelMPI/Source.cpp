@@ -6,11 +6,11 @@
 #include <math.h>
 #include <mpi.h>
 #include <set>
+#include <sstream>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string>
 #include <vector>
-#include <sstream>
 
 using namespace std;
 using namespace std::chrono;
@@ -211,71 +211,78 @@ MPI_Datatype createMPIVec() {
   return VecType;
 }
 
-void execute(int width, int height, int samples, string time_stamp, int my_rank, int num_procs) {
+void execute(int w, int h, int samps, string time_stamp, int my_rank, int num_procs) {
 
-  int w = width, h = height; // Image dimensions.
-  int samps = samples;       // Number of samples.
+  int width = w, height = h;                                    // Image dimensions.
+  int samples = samps;                                          // Number of samples.
+  int chunk_size = height / num_procs;                          // Amount of work for each node .
+  int node_start = (num_procs - (my_rank + 1)) * chunk_size;    // Node start index.
+  int node_end = (num_procs - (my_rank)) * chunk_size;          // Node end index.
+  Ray camera(Vec(50, 52, 295.6), Vec(0, -0.042612, -1).norm()); // Camera position and direction.
+  Vec cam_x = Vec(width * .5135 / height);                      // X direction increment.
+  Vec cam_y = (cam_x % camera.direction).norm() * .5135;        // Y direction increment.
+  Vec color_sample;                                             // Colour samples.
+  vector<Vec> pixel_colors;                                     // Vector of pixel values
+  pixel_colors.reserve(width * chunk_size);
 
-  int chunk = h / num_procs;
-  int chunk_end;
-
-  chunk_end = (num_procs - (my_rank)) * chunk;
-
-  Ray cam(Vec(50, 52, 295.6), Vec(0, -0.042612, -1).norm()); // Camera position and direction.
-  Vec cx = Vec(w * .5135 / h);                               // X direction increment.
-  Vec cy = (cx % cam.direction).norm() * .5135;              // Y direction increment.
-  Vec r;                                                     // Colour samples.
-  Vec *my_pixels = new Vec[w * chunk];                       // The image being rendered.
-  MPI_Datatype mpi_vec = createMPIVec();
-
-  for (int y = chunk * (num_procs - (my_rank + 1)); y < chunk_end; y++) { // Loop over image rows.
-
+  // Loop over chunk rows.
+  for (int y = node_start; y < node_end; y++) {
     unsigned short Xi[3] = {0, 0, y * y * y};
-
-    for (unsigned short x = 0; x < w; x++) {
-      for (int sy = 0, i = (chunk_end - y - 1) * w + x; sy < 2; sy++) {
-        for (int sx = 0; sx < 2; sx++, r = Vec()) {
-          for (int s = 0; s < samps; s++) {
-
+    // Loop over columns.
+    for (unsigned short x = 0; x < width; x++) {
+      // 2x2 subpixel rows.
+      for (int sy = 0, i = (node_end - y - 1) * width + x; sy < 2; sy++) {
+        // 2x2 subpixel cols.
+        for (int sx = 0; sx < 2; sx++, color_sample = Vec()) {
+          // For number of samples.
+          for (int s = 0; s < samples; s++) {
             double r1 = 2 * erand48(Xi);
             double dx = r1 < 1 ? sqrt(r1) - 1 : 1 - sqrt(2 - r1);
             double r2 = 2 * erand48(Xi);
             double dy = r2 < 1 ? sqrt(r2) - 1 : 1 - sqrt(2 - r2);
-
-            Vec d = cx * (((sx + .5 + dx) / 2 + x) / w - .5) + cy * (((sy + .5 + dy) / 2 + y) / h - .5) +
-                    cam.direction; // Compute ray direction
-            r = r + radiance(Ray(cam.origin + d * 140, d.norm()), 0, Xi) * (1. / samps);
+            // Compute ray direction
+            Vec cam_direction = cam_x * (((sx + .5 + dx) / 2 + x) / width - .5) +
+                                cam_y * (((sy + .5 + dy) / 2 + y) / height - .5) + camera.direction;
+            // Clamp pixel color values.
+            color_sample =
+                color_sample +
+                radiance(Ray(camera.origin + cam_direction * 140, cam_direction.norm()), 0, Xi) * (1. / samples);
           }
-          // Camera rays are pushed ^^^^^ forward to start in interior.
-          my_pixels[i] = my_pixels[i] + Vec(clamp(r.x), clamp(r.y), clamp(r.z)) * .25;
+          // Camera rays are pushed forward to start in interior.
+          pixel_colors[i] =
+              pixel_colors[i] + Vec(clamp(color_sample.x), clamp(color_sample.y), clamp(color_sample.z)) * .25;
         }
       }
     }
   }
 
-  vector<Vec> all_pixels; // Declare datastructure for all pixels
+  MPI_Datatype mpi_vec = createMPIVec(); // Declare custom MPI object to transfer pixel colors.
+  vector<Vec> all_pixels;                // Declare datastructure for all pixels
 
   if (my_rank == 0) {
-    all_pixels.resize(w * h); // Initialize pixel data structure
-    std::cout << "Commencing gather." << std::endl;
-  } else {
+    // Initialize pixel data structure
+    all_pixels.resize(width * height);
   }
-  // Gather individual processor pixels into proc 0.
-  MPI_Gather(&my_pixels[0], chunk * w, mpi_vec, &all_pixels[0], chunk * w, mpi_vec, 0, MPI_COMM_WORLD);
 
-  // Write pixel values to file.
+  // Gather individual processor pixels into proc 0.
+  MPI_Gather(&pixel_colors[0], chunk_size * width, mpi_vec, &all_pixels[0], chunk_size * width, mpi_vec, 0,
+             MPI_COMM_WORLD);
+
+  // Host writes pixel values to file.
   if (my_rank == 0) {
     std::cout << "Drawing image." << std::endl;
-    FILE *f = fopen("image.ppm", "w");
-    fprintf(f, "P3\n%d %d\n%d\n", w, h, 255);
-
-    for (size_t i = 0; i < w * h; i++) {
+    FILE *f = fopen(time_stamp.c_str(), "w");
+    fprintf(f, "P3\n%d %d\n%d\n", width, height, 255);
+    for (size_t i = 0; i < width * height; i++) {
       fprintf(f, "%d %d %d ", toInt(all_pixels[i].x), toInt(all_pixels[i].y), toInt(all_pixels[i].z));
     }
+    fclose(f);
   }
 }
 
+// Return the number of physical computers being used.
 int get_host_num(int my_rank, int num_procs) {
+
   char processor_name[MPI_MAX_PROCESSOR_NAME];
   int name_len;
   MPI_Get_processor_name(processor_name, &name_len);
@@ -299,8 +306,13 @@ int get_host_num(int my_rank, int num_procs) {
 
 int main(int argc, char *argv[]) {
 
+  // Exit if no sample number provided.
+  if (argc < 2) {
+    cout << "Invalid arguments." << endl;
+    return -1;
+  }
+
   // Initialise MPI.
-  int num_procs, my_rank;
   auto result = MPI_Init(&argc, &argv);
 
   if (result != MPI_SUCCESS) {
@@ -309,43 +321,64 @@ int main(int argc, char *argv[]) {
   }
 
   // Get MPI info.
+  int num_procs, my_rank;
   MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
   MPI_Comm_rank(MPI_COMM_WORLD, &my_rank);
 
-  int hosts = get_host_num(my_rank, num_procs);
+  int hosts = get_host_num(my_rank, num_procs);  // Number of physical hosts.
+  string time_stamp = "";                        // Timestamp for unique file name.
+  time_point<system_clock> start_time;           // Iteration start time.
+  vector<long> execution_times;                  // Vector for all iteration times.
+  int samps = argc == 2 ? atoi(argv[1]) / 4 : 1; // Number of samples per pixel.
+
   if (my_rank == 0) {
-    cout << hosts << endl;
+    // Master node gets current time for file names.
+    time_stamp = to_string(duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count());
   }
 
-  std::ofstream data;
-  time_point<system_clock> start_time;
+  // For 100 iterations.
+  for (int iteration = 0; iteration < 100; ++iteration) {
+    if (my_rank == 0) {
+      // Output current iteration.
+      cout << "Iteration: " << iteration << endl;
+      // Get start time.
+      start_time = system_clock::now();
+    }
+
+    // Execute ray trace.
+    execute(512, 512, samps, time_stamp, my_rank, num_procs);
+
+    if ((my_rank == 0) && (iteration > 9)) {
+      // Get end time.
+      auto end_time = system_clock::now();
+      // Calculate total time taken.
+      auto total_time = duration_cast<milliseconds>(end_time - start_time).count();
+      // Push time taken into vector.
+      execution_times.push_back(total_time);
+    }
+  }
 
   if (my_rank == 0) {
-	  string samp_no_str(argv[1]);
-
-    // Get current time for timings file timestamp.
-    auto time_stamp = to_string(duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count());
-    // Create timings file.
-
-	stringstream ss;
-	ss << "./Data/parallel_MPI_" << hosts << "H" << num_procs << "N_" << samp_no_str << "SPP" << time_stamp << ".csv";
-	string file_name = ss.str();
+    // Create file name.
+    string samp_no_str(argv[1]);
+    stringstream ss;
+    ss << "./Data/parallel_MPI_" << hosts << "H" << num_procs << "N_" << samp_no_str << "SPP_" << time_stamp << ".csv";
+    string file_name = ss.str();
+    // Create file writer.
     ofstream data(file_name, ofstream::out);
-    start_time = system_clock::now();
-  }
 
-  int samps = argc == 2 ? atoi(argv[1]) / 4 : 1;
+    // Write execution times to file.
+    for (int i = 0; i < execution_times.size(); ++i) {
+      data << i << "," << execution_times[i] << endl;
+    }
 
-  execute(512, 512, samps, "", my_rank, num_procs);
-
-  if (my_rank == 0) {
-    auto end_time = system_clock::now();
-    auto total_time = duration_cast<milliseconds>(end_time - start_time).count();
-    data << "," << total_time << std::endl;
+    // File clean up.
     data.flush();
     data.close();
   }
 
+  // MPI clean up.
   MPI_Finalize();
+
   return 0;
 }

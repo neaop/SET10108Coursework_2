@@ -213,8 +213,10 @@ void execute(int w, int h, int samp, string time_stamp) {
         for (int sx = 0; sx < 2; sx++, color_sample = Vec()) {
           // For number of samples.
           for (int s = 0; s < samples; s++) {
-            double r1 = 2 * erand48(Xi), dx = r1 < 1 ? sqrt(r1) - 1 : 1 - sqrt(2 - r1);
-            double r2 = 2 * erand48(Xi), dy = r2 < 1 ? sqrt(r2) - 1 : 1 - sqrt(2 - r2);
+            double r1 = 2 * erand48(Xi);
+            double dx = r1 < 1 ? sqrt(r1) - 1 : 1 - sqrt(2 - r1);
+            double r2 = 2 * erand48(Xi);
+            double dy = r2 < 1 ? sqrt(r2) - 1 : 1 - sqrt(2 - r2);
             // Compute ray direction.
             Vec cam_direction = cam_x * (((sx + .5 + dx) / 2 + x) / width - .5) +
                                 cam_y * (((sy + .5 + dy) / 2 + y) / height - .5) + camera.direction;
@@ -236,6 +238,7 @@ void execute(int w, int h, int samp, string time_stamp) {
   for (int i = 0; i < width * height; i++) {
     fprintf(f, "%d %d %d ", toInt(pixel_colors[i].x), toInt(pixel_colors[i].y), toInt(pixel_colors[i].z));
   }
+  fclose(f);
 }
 
 int main(int argc, char *argv[]) {
