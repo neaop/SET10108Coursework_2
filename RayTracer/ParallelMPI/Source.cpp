@@ -223,7 +223,7 @@ void execute(int w, int h, int samps, string time_stamp, int my_rank, int num_pr
   Vec cam_y = (cam_x % camera.direction).norm() * .5135;        // Y direction increment.
   Vec color_sample;                                             // Colour samples.
   vector<Vec> pixel_colors;                                     // Vector of pixel values
-  pixel_colors.reserve(width * chunk_size);
+  pixel_colors.resize(width * chunk_size);
 
   // Loop over chunk rows.
   for (int y = node_start; y < node_end; y++) {
@@ -337,7 +337,7 @@ int main(int argc, char *argv[]) {
   }
 
   // For 100 iterations.
-  for (int iteration = 0; iteration < 100; ++iteration) {
+  for (int iteration = 0; iteration < 110; ++iteration) {
     if (my_rank == 0) {
       // Output current iteration.
       cout << "Iteration: " << iteration << endl;
@@ -348,7 +348,7 @@ int main(int argc, char *argv[]) {
     // Execute ray trace.
     execute(512, 512, samps, time_stamp, my_rank, num_procs);
 
-    if ((my_rank == 0) && (iteration > 9)) {
+    if (my_rank == 0) {
       // Get end time.
       auto end_time = system_clock::now();
       // Calculate total time taken.

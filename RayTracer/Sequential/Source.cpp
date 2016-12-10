@@ -159,14 +159,16 @@ Vec radiance(const Ray &r, int d, unsigned short *Xi) {
       continue;
     }
 
-    Ray reflRay(x, ray.direction - n * 2 * n.dot(ray.direction)); // Ideal dielectric REFRACTION
-    bool into = n.dot(nl) > 0;                                    // Ray from outside going in?
+	// If object has a REFRACTION reflection.
+    Ray reflRay(x, ray.direction - n * 2 * n.dot(ray.direction));
+    bool into = n.dot(nl) > 0; // Ray from outside going in?
     double nc = 1, nt = 1.5;
     double nnt = into ? nc / nt : nt / nc;
     double ddn = ray.direction.dot(nl);
     double cos2t;
 
-    if ((cos2t = 1 - nnt * nnt * (1 - ddn * ddn)) < 0) { // Total internal reflection
+	// Total internal reflection
+    if ((cos2t = 1 - nnt * nnt * (1 - ddn * ddn)) < 0) { 
       // return obj.e + f.mult(radiance(reflRay,depth,Xi));
       ray = reflRay;
       continue;
