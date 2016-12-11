@@ -202,7 +202,7 @@ void execute(int w, int h, int samp, string time_stamp) {
   Vec cam_y = (cam_x % camera.direction).norm() * .5135;        // Y direction increment.
   Vec color_sample;                                             // Colour samples.
   vector<Vec> pixel_colors;                                     // Vector of color values.
-  pixel_colors.reserve(width * height);                         // The image being rendered.
+  pixel_colors.resize(width * height);                         // The image being rendered.
 
 #pragma omp parallel for num_threads(16) schedule(static) private(color_sample)
   // Loop over image rows.

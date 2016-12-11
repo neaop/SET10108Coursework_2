@@ -202,7 +202,7 @@ void execute(int w, int h, int samp, string time_stamp) {
   Vec cam_y = (cam_x % camera.direction).norm() * .5135;        // Y direction increment.
   Vec color_sample;                                             // Colour samples.
   vector<Vec> pixel_colors;                                     // Vector of color values.
-  pixel_colors.reserve(width * height);                         // The image being rendered.
+  pixel_colors.resize(width * height);                         // The image being rendered.
 
   // Loop over image rows.
   for (int y = 0; y < height; y++) {

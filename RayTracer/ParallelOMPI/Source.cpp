@@ -230,7 +230,7 @@ void execute(int w, int h, int samps, string time_stamp, int my_rank, int num_pr
 	vector<Vec> pixel_colors;                                     // Vector of pixel values
 	pixel_colors.resize(width * chunk_size);
 
-#pragma omp parallel for num_threads(8) schedule(dynamic, 1) private(color_sample)
+#pragma omp parallel for num_threads(16) schedule(dynamic, 1) private(color_sample)
 	// Loop over chunk rows.
 	for (int y = node_start; y < node_end; y++) {
 		unsigned short Xi[3] = { 0, 0, y * y * y };
@@ -368,7 +368,7 @@ int main(int argc, char *argv[]) {
 		// Create file name.
 		string samp_no_str(argv[1]);
 		stringstream ss;
-		ss << "./Data/ParallelOMPI/parallelOMPI_" <<"8D1_" << hosts << "H" << num_procs << "N_" << samp_no_str << "SPP_" << time_stamp << ".csv";
+		ss << "./Data/ParallelOMPI/parallelOMPI_" <<"16D1_" << hosts << "H" << num_procs << "N_" << samp_no_str << "SPP_" << time_stamp << ".csv";
 		string file_name = ss.str();
 		// Create file writer.
 		ofstream data(file_name, ofstream::out);
