@@ -248,7 +248,9 @@ int main(int argc, char *argv[]) {
   // Get current time for file timestamp.
   auto time_stamp = to_string(duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count());
   // Create file for iteration timings.
-  ofstream data("./Data/sequential_" + samp_no_str + "SPP_" + time_stamp + ".csv", ofstream::out);
+  ofstream data("./Data/Sequential/sequential_" + samp_no_str + "SPP_" + time_stamp + ".csv", ofstream::out);
+  // Add number of cores to file.
+  data << "Cores, 4" << endl;
 
   // Loop for 100 itterations.
   for (int iteration = 0; iteration < 100; ++iteration) {

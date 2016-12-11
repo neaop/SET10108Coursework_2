@@ -362,10 +362,12 @@ int main(int argc, char *argv[]) {
     // Create file name.
     string samp_no_str(argv[1]);
     stringstream ss;
-    ss << "./Data/parallel_MPI_" << hosts << "H" << num_procs << "N_" << samp_no_str << "SPP_" << time_stamp << ".csv";
+    ss << "./Data/ParallelMPI/parallelMPI_" << hosts << "H" << num_procs << "N_" << samp_no_str << "SPP_" << time_stamp << ".csv";
     string file_name = ss.str();
     // Create file writer.
     ofstream data(file_name, ofstream::out);
+	// Add number of cores to file.
+	data << "Cores, " << hosts * 4 << endl;
 
     // Write execution times to file.
     for (int i = 0; i < execution_times.size(); ++i) {
