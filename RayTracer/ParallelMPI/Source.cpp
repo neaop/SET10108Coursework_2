@@ -48,7 +48,7 @@ struct Ray {
 // Sphere material types.
 enum reflection_type { DIFFUSE, SPECULAR, REFRACTIVE };
 
-// Sphere structure - takes a radius, position and colour.
+// Sphere structure - takes a radius, position , emisson, colour and material.
 struct Sphere {
   double radius;
   Vec position, emission, color;
@@ -63,13 +63,15 @@ struct Sphere {
     // Solve: t^2*d.d + 2*t*(o-p).d + (o-p).(o-p)-R^2 = 0.
     Vec op = position - ray.origin;
     double t;
-    double eps = 1e-4;
+    double eps = 1e-4; // Tolerance factor.
     double b = op.dot(ray.direction);
     double det = b * b - op.dot(op) + radius * radius;
 
     if (det < 0) {
+      // Ray misses sphere.
       return 0;
     } else {
+      // Ray hits sphere.
       det = sqrt(det);
     }
     return (t = b - det) > eps ? t : ((t = b + det) > eps ? t : 0);
@@ -78,7 +80,6 @@ struct Sphere {
 
 // Scene to be rendered - made entierly of spheres.
 Sphere spheres[] = {
-    // Radius, position, emission, color, material.
     Sphere(1e5, Vec(1e5 + 1, 40.8, 81.6), Vec(), Vec(.75, .25, .25), DIFFUSE),   // Left
     Sphere(1e5, Vec(-1e5 + 99, 40.8, 81.6), Vec(), Vec(.25, .25, .75), DIFFUSE), // Rght
     Sphere(1e5, Vec(50, 40.8, 1e5), Vec(), Vec(.75, .75, .75), DIFFUSE),         // Back
@@ -113,12 +114,12 @@ inline bool intersect(const Ray &ray, double &t, int &id) {
 
 // Computes the radiance estimate along a ray.
 Vec radiance(const Ray &r, int d, unsigned short *Xi) {
-  Ray ray = r;
-  int depth = d;
-  double t;        // Distance to intersection
-  int id = 0;      // ID of intersected object
-  Vec cl(0, 0, 0); // Accumulated color
-  Vec cf(1, 1, 1); // Accumulated reflectance
+  Ray ray = r;     // Initial ray.
+  int depth = d;   // Initial ray bounces.
+  double t;        // Distance to intersection.
+  int id = 0;      // ID of intersected object.
+  Vec cl(0, 0, 0); // Accumulated color.
+  Vec cf(1, 1, 1); // Accumulated reflectance.
 
   while (1) {
     // If ray misses - return black.
@@ -126,64 +127,68 @@ Vec radiance(const Ray &r, int d, unsigned short *Xi) {
       return cl;
     }
 
-    const Sphere &obj = spheres[id];                                       // Object hit by ray.
-    Vec x = ray.origin + ray.direction * t, n = (x - obj.position).norm(); // Ray intersection point.
-    Vec nl = n.dot(ray.direction) < 0 ? n : n * -1;                        // Properly oriented surface normal.
-    Vec f = obj.color;                                                     // Object color.
-    double p = f.x > f.y && f.x > f.z ? f.x : f.y > f.z ? f.y : f.z;       // Max reflection color.
+    const Sphere &obj = spheres[id];                                 // Object hit by ray.
+    Vec x = ray.origin + ray.direction * t;                          // Ray intersection point.
+    Vec n = (x - obj.position).norm();                               // Sphere normal
+    Vec nl = n.dot(ray.direction) < 0 ? n : n * -1;                  // Properly oriented surface normal.
+    Vec f = obj.color;                                               // Hit object's color.
+    double p = f.x > f.y && f.x > f.z ? f.x : f.y > f.z ? f.y : f.z; // Hit object's max reflectivity.
+
+    // Add objects color to accumulated pixel color
     cl = cl + cf.mult(obj.emission);
 
-    // Russian roulette - 5 times.
+    // Bounce up to 5 times.
     if (++depth > 5) {
       if (erand48(Xi) < p) {
         f = f * (1 / p);
       } else {
-        return cl; // R.R.
+        // return color.
+        return cl;
       }
     }
 
+    // Update reflectance.
     cf = cf.mult(f);
 
-    // If object has a DIFFUSE reflection (not shiny)
+    // If object has a DIFFUSE texture.
     if (obj.reflection == DIFFUSE) {
-      double r1 = 2 * M_PI * erand48(Xi);                                        // Angle
+      double r1 = 2 * M_PI * erand48(Xi);                                        // Angle.
       double r2 = erand48(Xi), r2s = sqrt(r2);                                   // Distance from center.
       Vec w = nl;                                                                // Normal.
       Vec u = ((fabs(w.x) > .1 ? Vec(0, 1) : Vec(1)) % w).norm();                // Perpendicular to w.
       Vec v = w % u;                                                             // Perpendicular to u and w.
       Vec d = (u * cos(r1) * r2s + v * sin(r1) * r2s + w * sqrt(1 - r2)).norm(); // Random reflection ray.
-      // return obj.e + f.mult(radiance(Ray(x,d),depth,Xi));
-      ray = Ray(x, d); //
+      ray = Ray(x, d);                                                           // Calculate ray's new direction.
       continue;
 
-      // If object has a SPECULAR reflection.
+      // If object has a SPECULAR texture.
     } else if (obj.reflection == SPECULAR) {
-      // return obj.e + f.mult(radiance(Ray(x,r.d-n*2*n.dot(r.d)),depth,Xi));
+      // Bounce ray using object's surface normal.
       ray = Ray(x, ray.direction - n * 2 * n.dot(ray.direction));
       continue;
     }
 
-    Ray reflRay(x, ray.direction - n * 2 * n.dot(ray.direction)); // Ideal dielectric REFRACTION
-    bool into = n.dot(nl) > 0;                                    // Ray from outside going in?
+    // If object has a REFRACTION texture.
+    Ray reflRay(x, ray.direction - n * 2 * n.dot(ray.direction)); // Compute ray reflection.
+    bool into = n.dot(nl) > 0;                                    // Determine if ray is from outside going into object.
     double nc = 1, nt = 1.5;
     double nnt = into ? nc / nt : nt / nc;
     double ddn = ray.direction.dot(nl);
     double cos2t;
 
-    if ((cos2t = 1 - nnt * nnt * (1 - ddn * ddn)) < 0) { // Total internal reflection
-                                                         // return obj.e + f.mult(radiance(reflRay,depth,Xi));
+    // Reflect ray if it enters glass at shallow angle - Total internal reflection.
+    if ((cos2t = 1 - nnt * nnt * (1 - ddn * ddn)) < 0) {
       ray = reflRay;
       continue;
     }
 
+    // Determine ray reflection or refaction.
     Vec tdir = (ray.direction * nnt - n * ((into ? 1 : -1) * (ddn * nnt + sqrt(cos2t)))).norm();
     double a = nt - nc, b = nt + nc, R0 = a * a / (b * b), c = 1 - (into ? -ddn : tdir.dot(n));
     double Re = R0 + (1 - R0) * c * c * c * c * c;
-    double Tr = 1 - Re, P = .25 + .5 * Re;
+    double Tr = 1 - Re;
+    double P = .25 + .5 * Re; // Probability of reflecting
     double RP = Re / P, TP = Tr / (1 - P);
-    // return obj.e + f.mult(erand48(Xi)<P ?
-    //		radiance(reflRay, depth,Xi) * RP:
-    //		radiance(Ray(x, tdir), depth, Xi) * TP);
     if (erand48(Xi) < P) {
       cf = cf * RP;
       ray = reflRay;
@@ -195,24 +200,30 @@ Vec radiance(const Ray &r, int d, unsigned short *Xi) {
   }
 }
 
+// Custom MPI struct to emulate Vec struct.
 MPI_Datatype createMPIVec() {
-
+  // Datatype name.
   MPI_Datatype VecType;
+  // Datatype contents - 3 doubles.
   MPI_Datatype type[3] = {MPI_DOUBLE, MPI_DOUBLE, MPI_DOUBLE};
+  // Length of each varible - 1.
   int blockLen[3] = {1, 1, 1};
   MPI_Aint disp[3];
 
+  // Caclulate size of object - based off contents.
   disp[0] = (MPI_Aint)offsetof(struct Vec, x);
   disp[1] = (MPI_Aint)offsetof(struct Vec, y);
   disp[2] = (MPI_Aint)offsetof(struct Vec, z);
 
+  // Create custom datatype.
   MPI_Type_create_struct(3, blockLen, disp, type, &VecType);
+  // Commit datatype.
   MPI_Type_commit(&VecType);
+
   return VecType;
 }
 
 void execute(int w, int h, int samps, string time_stamp, int my_rank, int num_procs) {
-
   int width = w, height = h;                                    // Image dimensions.
   int samples = samps;                                          // Number of samples.
   int chunk_size = height / num_procs;                          // Amount of work for each node .
@@ -282,7 +293,6 @@ void execute(int w, int h, int samps, string time_stamp, int my_rank, int num_pr
 
 // Return the number of physical computers being used.
 int get_host_num(int my_rank, int num_procs) {
-
   char processor_name[MPI_MAX_PROCESSOR_NAME];
   int name_len;
   MPI_Get_processor_name(processor_name, &name_len);
@@ -305,7 +315,6 @@ int get_host_num(int my_rank, int num_procs) {
 }
 
 int main(int argc, char *argv[]) {
-
   // Exit if no sample number provided.
   if (argc < 2) {
     cout << "Invalid arguments." << endl;
@@ -362,18 +371,17 @@ int main(int argc, char *argv[]) {
     // Create file name.
     string samp_no_str(argv[1]);
     stringstream ss;
-    ss << "./Data/ParallelMPI/parallelMPI_" << hosts << "H" << num_procs << "N_" << samp_no_str << "SPP_" << time_stamp << ".csv";
+    ss << "./Data/ParallelMPI/parallelMPI_" << hosts << "H" << num_procs << "N_" << samp_no_str << "SPP_" << time_stamp
+       << ".csv";
     string file_name = ss.str();
     // Create file writer.
     ofstream data(file_name, ofstream::out);
-	// Add number of cores to file.
-	data << "Cores, " << hosts * 4 << endl;
-
+    // Add total number of cores to file.
+    data << "Cores, " << hosts * 4 << endl;
     // Write execution times to file.
     for (int i = 0; i < execution_times.size(); ++i) {
       data << i << "," << execution_times[i] << endl;
     }
-
     // File clean up.
     data.flush();
     data.close();
