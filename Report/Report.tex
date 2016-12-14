@@ -16,7 +16,7 @@
 \usepackage{xcolor}
 \usepackage{listings}
 
-
+\lstset{inputpath=./RayTracer/}
 \lstset{
 	escapeinside={/*@}{@*/},
 	language=Java,	
@@ -115,9 +115,9 @@ Edinburgh Napier University, Edinburgh}% <-this % stops an unwanted space
 	\subsection{MPI}
 		\texttt{MPI} (Message Passing Interface) is a standardised method of distributed parallelism that operates by having multiple processors communicate by sending and receiving signals from one another via communication channels. 
 		
-		\texttt{MPI} allows a developer to build highly scalable systems by simply providing a list of  PC IP addresses when the application is launched. A point that developers must be aware of however is the networking overhead that distributed system innately suffer from.
+		\texttt{MPI} allows a developer to build highly scalable systems by simply providing a list of IP addresses when the application is launched. A point that developers must be aware of however is the networking overhead that distributed system innately suffer from. Figure \ref{fig_network} depicts how  the amount of time it takes to send data scales with the size of the data being sent. It should be noted that while the time taken to transfer does drop with the size of the data, eventually there is no benefit to adding more PCs to a distributed application. The full data from which the Chart was generated is visible in Appendix \ref{table_network}.
 
-		\begin{figure}[h]
+		\begin{figure}[]
 			\centering
 			\includegraphics[width = 0.5\textwidth]{chartNetwork}
 			\caption{A line chart depicting the the time required to send data over a network.}
@@ -127,10 +127,25 @@ Edinburgh Napier University, Edinburgh}% <-this % stops an unwanted space
 \section{Methodology}
 		
 	\subsection{Profiling}
-		Prior to implementing any methods that will save time, the sequential code must first be analysed. By using the Visual Studio Performance Profiler, it is possible to evaluate the sequential code and locate the functions or methods that use up the most CPU time. Once the potentially problematic areas have been identified, a suitable parallelisation method can be implemented to reduce the impact of those areas on the execution time. It should be noted that all code presented in the report was run without any form of compiler optimisation.
+		Prior to implementing any Speed-up methods, the sequential code must first be analysed. By using the Visual Studio Performance Profiler, it is possible to evaluate the sequential code and locate the functions or methods that use the most CPU time. Once the potentially problematic areas have been identified, a suitable parallelisation method can be implemented to reduce the impact of those areas on the execution time. 
 		
 	\subsection{Data Collection}
-		To ensure fair comparison and accurate results, each implementation was tested using the same parameters. Each solution was run till completion with a Sample per Pixel rate of forty and the execution time was recorded. This was then repeated one-hundred times for each application and the results were then averaged. All benchmarking was performed on the same device, the specifications of which are visible in Table \ref{pcSpecsTable}. 
+		To ensure fair comparison and accurate results, each implementation was tested using the same parameters. Each solution produced an image 512 pixels high by 512 pixels wide, the time taken to do so was recorded. This was repeated one-hundred times for each configuration and a mean of the total time taken was produced. All benchmarking was performed on computers with the same technical specifications, which are visible in Table \ref{pcSpecsTable}. It should be noted that all code presented in the report was run without any form of compiler optimisation.
+		
+		\begin{table}[]
+		\centering
+		\caption{PC Specifications}
+		\label{pcSpecsTable}
+			\begin{tabular}{|l|l|}
+				\hline
+				CPU & i7-4790k 4 Core HT @ 4.00 ghz \\ \hline
+				RAM & 16gb Dual Channel DDR3        \\ \hline
+				GPU & Nvidia GeForce GTX 980        \\ \hline
+				OS  & Windows 7 64 Bit              \\ \hline
+				Bandwidth & 1 Gbit/s  				\\ \hline
+				Latency   & $\sim129947$ ns 		\\ \hline
+			\end{tabular}
+		\end{table}
 		
 	\subsection{Evaluation}
 		As well as the average execution time, speed-up and efficiency are calculated for each technique. Speed-up is defined as: 
@@ -143,27 +158,30 @@ Edinburgh Napier University, Edinburgh}% <-this % stops an unwanted space
 		\[E = \frac{S}{P}\]
 		
 		\noindent \(S\) being speed-up from the previous formula and \(P\) is the number of physical cores being utilized by the application.
-		\\\\The two equations listed above provide standardised metrics for each method or technology tested - allowing for a fair and simple comparison of the final results.
 		
-	\begin{table}[]
-		\centering
-		\caption{PC Specifications}
-		\label{pcSpecsTable}
-		\begin{tabular}{|l|l|}
-			\hline
-			CPU & i7-4790k 4 Core HT @ 4.00 ghz \\ \hline
-			RAM & 16gb Dual Channel DDR3        \\ \hline
-			GPU & Nvidia GeForce GTX 980        \\ \hline
-			OS  & Windows 7 64 Bit              \\ \hline
-			Bandwidth & 1 Gbit/s  				\\ \hline
-			Latency   & $\sim129947$ ns 		\\ \hline
-		\end{tabular}
-	\end{table}
+		The two equations listed above provide standardised metrics for each method or technology tested - allowing for a fair and simple comparison of the final results.
 		
-\newpage
-
+\section{Implementation}
+	As previously stated, the Ray Tracer presented here is a reimplementation of the iterative \texttt{smallpt} system \cite{smallptG75:online}. Several modification had to be made to the original code to allow the implementation of parallelisation. The author of original application had written the Ray Tracer to be under 100 lines of code - which led to said code being highly obfuscated and difficult to read. Much of the development time was spent on expanding, commenting and rewriting the initial code to allow for readability and clearer functionality. Another issue with the original code base was that it was originally designed to be compiled with \texttt{GCC} meaning certain methods calls were unavailable
+	
+	\subsection{Sequential}
+		Once the program was cleared up, a simple for loop was added to allow multiple iterations to be performed, and a file writer was used to allow the time taken for each iteration to be recorded. This sequential version of the code became the base for both the \texttt{OpenMP}, and \texttt{MPI} implementations.
+	
+	\subsection{OpenMP}
+		Very little change had to be made to the sequential code in order to implement \texttt{OpenMP}. The most obvious location for parallelisation was the \texttt{radiance()} method, which is called from within five nested for loops. By simply inserting a \texttt{\#pragma parallel for} statement above the upper-most loop - the application was made parallel.
+		
+%		\lstinputlisting[firstline=37, lastline=45, caption = A fucking code listing.]{ParallelOMP/Source.cpp}
+	\subsection{MPI}
 
 \section{Results}
+	\subsection{Sequential}
+		\begin{figure}[h]
+			\centering
+			\includegraphics[width = 0.5\textwidth]{chartSeqTime}
+			\caption{A line chart indicating the increase in execution time in regard to the number of colour samples per pixel.}
+			\label{fig_seq_time}
+		\end{figure}
+
 	\subsection{OpenMP}
 		\begin{figure}[h]
 			\centering
@@ -179,6 +197,8 @@ Edinburgh Napier University, Edinburgh}% <-this % stops an unwanted space
 			\label{fig_omp_eff}
 		\end{figure}
 		\newpage
+		
+		
 	\subsection{MPI}
 		\begin{figure}[h]
 			\centering
@@ -220,6 +240,25 @@ Edinburgh Napier University, Edinburgh}% <-this % stops an unwanted space
 \newpage
 \onecolumn
 \appendices
+
+\section{}
+\begin{table*}[h]
+	\centering
+	\caption{Data transfer times over a network.}
+	\label{table_network}
+	\begin{tabular}{|r|r|r|r|r|r|r|r|r|r|}
+		\hline
+		\multicolumn{1}{|l|}{Nodes} & \multicolumn{1}{l|}{Width} & \multicolumn{1}{l|}{Height} & \multicolumn{1}{l|}{Chunk Size} & \multicolumn{1}{l|}{Pixels Per Node} & \multicolumn{1}{l|}{Vec size (bits)} & \multicolumn{1}{l|}{Total Data (bits)} & \multicolumn{1}{l|}{Bandwidth bits/s} & \multicolumn{1}{l|}{Latency(s)} & \multicolumn{1}{l|}{Time (s)} \\ \hline
+		2                           & 512                        & 512                         & 256                             & 131072                               & 192                                  & 25165824                               & 1000000000                            & 0.00013                         & 0.02530                       \\ \hline
+		4                           & 512                        & 512                         & 128                             & 65536                                & 192                                  & 12582912                               & 1000000000                            & 0.00013                         & 0.01271                       \\ \hline
+		8                           & 512                        & 512                         & 64                              & 32768                                & 192                                  & 6291456                                & 1000000000                            & 0.00013                         & 0.00642                       \\ \hline
+		16                          & 512                        & 512                         & 32                              & 16384                                & 192                                  & 3145728                                & 1000000000                            & 0.00013                         & 0.00328                       \\ \hline
+		32                          & 512                        & 512                         & 16                              & 8192                                 & 192                                  & 1572864                                & 1000000000                            & 0.00013                         & 0.00170                       \\ \hline
+		64                          & 512                        & 512                         & 8                               & 4096                                 & 192                                  & 786432                                 & 1000000000                            & 0.00013                         & 0.00092                       \\ \hline
+		128                         & 512                        & 512                         & 4                               & 2048                                 & 192                                  & 393216                                 & 1000000000                            & 0.00013                         & 0.00052                       \\ \hline
+	\end{tabular}
+\end{table*}
+
 \section{}
 	\begin{table}[h]
 		\centering
@@ -236,9 +275,10 @@ Edinburgh Napier University, Edinburgh}% <-this % stops an unwanted space
 			128                           & 165345                         \\ \hline
 		\end{tabular}
 	\end{table}
-
+	\newpage
+	
 \section{}
-	\begin{table*}[h!]
+	\begin{table*}[h]
 		
 		
 		
@@ -252,7 +292,7 @@ Edinburgh Napier University, Edinburgh}% <-this % stops an unwanted space
 	\label{table_omp_data}
 	\begin{tabular}{|l|r|r|r|r|r|}
 		\hline
-		Schedule & \multicolumn{1}{l|}{Samples} & \multicolumn{1}{l|}{Threads} & \multicolumn{1}{l|}{Average Time} & \multicolumn{1}{l|}{Speed-up} & \multicolumn{1}{l|}{Efficiency} \\ \hline
+		Schedule & \multicolumn{1}{l|}{Samples} & \multicolumn{1}{l|}{Threads} & \multicolumn{1}{l|}{Mean Time} & \multicolumn{1}{l|}{Speed-up} & \multicolumn{1}{l|}{Efficiency} \\ \hline
 		Dynamic       & 4                            & 2                            & 3014                              & 1.90279                       & 0.95139                         \\ \hline
 		Dynamic       & 8                            & 2                            & 5600                              & 1.92750                       & 0.96375                         \\ \hline
 		Dynamic       & 16                           & 2                            & 10895                             & 1.95337                       & 0.97669                         \\ \hline
@@ -485,22 +525,6 @@ Edinburgh Napier University, Edinburgh}% <-this % stops an unwanted space
 \end{table*}
 	\newpage
 	
-\section{}
-	\begin{table}[h]
-		\centering
-		\caption{Data transfer times over a network.}
-		\label{table_network}
-		\begin{tabular}{|r|r|r|r|r|r|r|r|r|r|}
-			\hline
-			\multicolumn{1}{|l|}{Nodes} & \multicolumn{1}{l|}{Width} & \multicolumn{1}{l|}{Height} & \multicolumn{1}{l|}{Chunk Size} & \multicolumn{1}{l|}{Pixels Per Node} & \multicolumn{1}{l|}{Vec size (bits)} & \multicolumn{1}{l|}{Total Data (bits)} & \multicolumn{1}{l|}{Bandwidth bits/s} & \multicolumn{1}{l|}{Latency(s)} & \multicolumn{1}{l|}{Time (s)} \\ \hline
-			2                           & 512                        & 512                         & 256                             & 131072                               & 192                                  & 25165824                               & 1000000000                            & 0.00013                         & 0.02530                       \\ \hline
-			4                           & 512                        & 512                         & 128                             & 65536                                & 192                                  & 12582912                               & 1000000000                            & 0.00013                         & 0.01271                       \\ \hline
-			8                           & 512                        & 512                         & 64                              & 32768                                & 192                                  & 6291456                                & 1000000000                            & 0.00013                         & 0.00642                       \\ \hline
-			16                          & 512                        & 512                         & 32                              & 16384                                & 192                                  & 3145728                                & 1000000000                            & 0.00013                         & 0.00328                       \\ \hline
-			32                          & 512                        & 512                         & 16                              & 8192                                 & 192                                  & 1572864                                & 1000000000                            & 0.00013                         & 0.00170                       \\ \hline
-			64                          & 512                        & 512                         & 8                               & 4096                                 & 192                                  & 786432                                 & 1000000000                            & 0.00013                         & 0.00092                       \\ \hline
-			128                         & 512                        & 512                         & 4                               & 2048                                 & 192                                  & 393216                                 & 1000000000                            & 0.00013                         & 0.00052                       \\ \hline
-		\end{tabular}
-	\end{table}
+
 
 \end{document}
