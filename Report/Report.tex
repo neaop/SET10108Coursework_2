@@ -91,7 +91,7 @@ Edinburgh Napier University, Edinburgh}% <-this % stops an unwanted space
 	
 		The Ray Tracer being analysed in this project is based on an iterative version of the \texttt{smallpt} Ray Tracer \cite{smallptG75:online}. This Ray Tracer can sample a pixel multiple times to generate a more accurate and detailed image. Two sample images are visible in Figure \ref{fig_ray_traced_images}. As can be seen - the accuracy and detail of the final images depends heavily upon the number of ray samples per pixel.
 		
-		Ray Tracers are ideal candidates for parallelisation, as each individual ray has no dependence upon another, thereby creating a data-parallel (or embarrassingly-parallel) problem.
+		Ray Tracers are ideal candidates for improvement via parallelisation as each individual ray has no dependence upon any other, thereby creating a data-parallel (or embarrassingly-parallel) problem.
 		
 		\begin{figure*}[]
 			\centering
@@ -109,7 +109,7 @@ Edinburgh Napier University, Edinburgh}% <-this % stops an unwanted space
 		
 		The two schedulers investigated in this project are: \texttt{Static} and inter-weaved \texttt{Dynamic}. The \texttt{Static} scheduler will break a for loop into chunks, each equal to the number of iterations divided by the number of threads. E.g. in the case of a 100 iteration loop split across 4 threads: each thread would run for 25 iterations.
 		
-		The \texttt{Dynamic} scheduler on
+		The \texttt{Dynamic} scheduler also breaks a single for loop into chunks, however the chunks are typically much smaller than those produced by the Static scheduler. Threads are then assigned a chunk of work, and upon completeion can request a new chunk to work on.
 
 	\subsection{MPI}
 		\texttt{MPI} (Message Passing Interface) is a standardised method of distributed parallelism that operates by having multiple processors communicate by sending and receiving signals from one another via communication channels. 
@@ -155,11 +155,50 @@ Edinburgh Napier University, Edinburgh}% <-this % stops an unwanted space
 
 \section{Results}
 	\subsection{OpenMP}
-	
+		\begin{figure}[h]
+			\centering
+			\includegraphics[width = 0.5\textwidth]{chartOMPSpeed}
+			\caption{A bar chart indicating the degree of Speed-up for multiple \texttt{OpenMP} schedule and thread configurations.}
+			\label{fig_omp_speed}
+		\end{figure}
+		
+		\begin{figure}[h]
+			\centering
+			\includegraphics[width = 0.5\textwidth]{chartOMPEff}
+			\caption{A bar chart indicating the degree of Efficiency for multiple \texttt{OpenMP} schedule and thread configurations.}
+			\label{fig_omp_eff}
+		\end{figure}
+		\newpage
 	\subsection{MPI}
-	
+		\begin{figure}[h]
+			\centering
+			\includegraphics[width = 0.5\textwidth]{chartMPISpeed}
+			\caption{A bar chart indicating the degree of Speed-up for multiple \texttt{MPI} Node and Host configurations.}
+			\label{fig_mpi_speed}
+		\end{figure}
+		
+		\begin{figure}[h]
+			\centering
+			\includegraphics[width = 0.5\textwidth]{chartMPIEff}
+			\caption{A bar chart indicating the degree of Efficiency for multiple \texttt{MPI} Node and Host configurations.}
+			\label{fig_mpi_eff}
+		\end{figure}
+		\newpage
 	\subsection{MPI with OpenMP}
-
+		\begin{figure}[h]
+			\centering
+			\includegraphics[width = 0.5\textwidth]{chartOMPISpeed}
+			\caption{A bar chart indicating the degree of Speed-up when using \texttt{MPI} and \texttt{OpenMP} with various scheduling types and number of Hosts configurations.}
+			\label{fig_ompi_speed}
+		\end{figure}
+		
+		\begin{figure}[h]
+			\centering
+			\includegraphics[width = 0.5\textwidth]{chartOMPIEff}
+			\caption{A bar chart indicating the degree of Efficiency when using \texttt{MPI} and \texttt{OpenMP} with various scheduling types and number of Hosts configurations.}
+			\label{fig_ompi_eff}
+		\end{figure}
+		\newpage
 	
 \section{Conclusion}
 		
