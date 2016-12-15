@@ -16,8 +16,8 @@
 \usepackage{xcolor}
 \usepackage{listings}
 
-\lstset{inputpath=./RayTracer/}
 \lstset{
+	inputpath=../RayTracer/,
 	escapeinside={/*@}{@*/},
 	language=Java,	
 	basicstyle=\fontsize{8.5}{12}\selectfont,
@@ -170,11 +170,17 @@ Edinburgh Napier University, Edinburgh}% <-this % stops an unwanted space
 	\subsection{OpenMP}
 		Very little change had to be made to the sequential code in order to implement \texttt{OpenMP}. The most obvious location for parallelisation was the \texttt{radiance()} method, which is called from within five nested for loops. By simply inserting a \texttt{\#pragma parallel for} statement above the upper-most loop - the application was made parallel.
 		
-%		\lstinputlisting[firstline=37, lastline=45, caption = A fucking code listing.]{ParallelOMP/Source.cpp}
 	\subsection{MPI}
-
+		A significant amount of re-basing and re-factoring had to be undertaken in order to implement \texttt{MPI} functionality within the system - not including the $\sim100$ additional lines of code. The workload of the application was split into chunks - 512 pixels wide, \(512 / number Of Nodes\) pixels high. This ensured each node was given an equally sized chunk to work on. Care also had to be taken to ensure only a single node was performing the timing and I/O operations of the system.
+		
+	\subsection{MPI with OpenMP}
+		Similarly to the changes from the sequential to \texttt{OpenMP} code, very little of the \texttt{MPI} code had to be altered i norder to include \texttt{OpenMP}. A \texttt{\#pragma parallel for} was inserted above the same the nested for loop as before, which allowed \texttt{MPI} nodes to create shared memory threads of there own.
+	
 \section{Results}
+	\lipsum[1]
+	
 	\subsection{Sequential}
+			\lipsum[2]
 		\begin{figure}[h]
 			\centering
 			\includegraphics[width = 0.5\textwidth]{chartSeqTime}
@@ -183,54 +189,57 @@ Edinburgh Napier University, Edinburgh}% <-this % stops an unwanted space
 		\end{figure}
 
 	\subsection{OpenMP}
-		\begin{figure}[h]
+		\lipsum[4]
+		\begin{figure}[ht]
 			\centering
 			\includegraphics[width = 0.5\textwidth]{chartOMPSpeed}
 			\caption{A bar chart indicating the degree of Speed-up for multiple \texttt{OpenMP} schedule and thread configurations.}
 			\label{fig_omp_speed}
 		\end{figure}
 		
-		\begin{figure}[h]
+		\begin{figure}[ht]
 			\centering
 			\includegraphics[width = 0.5\textwidth]{chartOMPEff}
 			\caption{A bar chart indicating the degree of Efficiency for multiple \texttt{OpenMP} schedule and thread configurations.}
 			\label{fig_omp_eff}
 		\end{figure}
-		\newpage
-		
 		
 	\subsection{MPI}
-		\begin{figure}[h]
+		\lipsum[5]
+		\begin{figure}[ht]
 			\centering
 			\includegraphics[width = 0.5\textwidth]{chartMPISpeed}
 			\caption{A bar chart indicating the degree of Speed-up for multiple \texttt{MPI} Node and Host configurations.}
 			\label{fig_mpi_speed}
 		\end{figure}
 		
-		\begin{figure}[h]
+		\begin{figure}[ht]
 			\centering
 			\includegraphics[width = 0.5\textwidth]{chartMPIEff}
 			\caption{A bar chart indicating the degree of Efficiency for multiple \texttt{MPI} Node and Host configurations.}
 			\label{fig_mpi_eff}
 		\end{figure}
-		\newpage
+
 	\subsection{MPI with OpenMP}
-		\begin{figure}[h]
+		\lipsum[6]
+		\begin{figure}[ht]
 			\centering
 			\includegraphics[width = 0.5\textwidth]{chartOMPISpeed}
 			\caption{A bar chart indicating the degree of Speed-up when using \texttt{MPI} and \texttt{OpenMP} with various scheduling types and number of Hosts configurations.}
 			\label{fig_ompi_speed}
 		\end{figure}
 		
-		\begin{figure}[h]
+		\begin{figure}[ht]
 			\centering
 			\includegraphics[width = 0.5\textwidth]{chartOMPIEff}
 			\caption{A bar chart indicating the degree of Efficiency when using \texttt{MPI} and \texttt{OpenMP} with various scheduling types and number of Hosts configurations.}
 			\label{fig_ompi_eff}
 		\end{figure}
-		\newpage
+
 	
 \section{Conclusion}
+	\lipsum[7-8]
+	
 		
 
 \bibliographystyle{IEEEtran}
