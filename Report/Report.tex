@@ -61,12 +61,9 @@ Edinburgh Napier University, Edinburgh}% <-this % stops an unwanted space
 % The only time the second header will appear is for the odd numbered pages after the title page when using the twoside option.
 
 \IEEEtitleabstractindextext{
-\begin{abstract}
-	The abstract goes here.
-\end{abstract}
 
 \begin{IEEEkeywords}
-	C++11, Ray Tracer, Parallel, OpenMP, MPI, Speed-up.
+	C++11, Ray Tracer, Parallel, OpenMP, MPI, Speed-up, Efficiency
 \end{IEEEkeywords}}
 
 \maketitle
@@ -181,7 +178,7 @@ Edinburgh Napier University, Edinburgh}% <-this % stops an unwanted space
 	\subsection{Sequential}
 		The sequential code was the first to be tested, not only because it was the first configuration to be completed but also because the benchmarks produced would be used to determine the performance of the other parallelisation implementations.
 		
-		A chart showing the increase of execution time in regards to the number of samples per pixel is visible in Figure \ref{fig_seq_time}, and the full data in Appendix \ref{table_seq_data}.
+		A chart showing the increase of execution time in regards to the number of samples per pixel is visible in Figure \ref{fig_seq_time}, and the full data in Table \ref{table_seq_data}.
 		
 		\begin{figure}[h]
 			\centering
@@ -189,6 +186,23 @@ Edinburgh Napier University, Edinburgh}% <-this % stops an unwanted space
 			\caption{A line chart indicating the increase in execution time in regard to the number of colour samples per pixel.}
 			\label{fig_seq_time}
 		\end{figure}
+	
+		\begin{table}[h]
+		\centering
+		\caption{Sequential Benchmarks}
+		\label{table_seq_data}
+		\begin{tabular}{|r|r|}
+			\hline
+			\multicolumn{1}{|l|}{Samples} & \multicolumn{1}{l|}{Mean Time} \\ \hline
+			4                             & 5735                           \\ \hline
+			8                             & 10794                          \\ \hline
+			16                            & 21282                          \\ \hline
+			32                            & 41829                          \\ \hline
+			64                            & 83256                          \\ \hline
+			128                           & 165345                         \\ \hline
+		\end{tabular}
+	\end{table}
+	
 	
 		
 
@@ -199,11 +213,13 @@ Edinburgh Napier University, Edinburgh}% <-this % stops an unwanted space
 			For efficiency, we should see an increase as the workload of each thread is incremented, as the overhead initialising a thread becomes a lower proportion of the total work being performed.
 		
 		\subsubsection{Actual Results}
-			The speed-up and efficiency of the \texttt{OpenMP} solutions are visible in Figures [\ref{fig_mpi_speed}, \ref{fig_mpi_eff}] and the raw data is available in Appendix \ref{table_omp_data}.
+			The speed-up and efficiency of the \texttt{OpenMP} solutions are visible in Figures \ref{fig_mpi_speed} and \ref{fig_mpi_eff}` and the raw data is available in Appendix \ref{table_omp_data}.
 			
 			As can be seen from the charts, the final results lined up very closely with the expected outcome. Speed-up steadily increased with the number of threads being utilized, up until 16 threads were in use. At 16 threads the number of context switches taking place on the CPU cores means there is very little benefit over simply utilizing less threads.
 			
-			The results for the \texttt{OpenMP} solution's efficiency followed a similar trend as the speed-up, bar the configurations that used 4 threads. The two threaded solution produced an almost linear efficiency, which would be expected as a percentage of the application must be run sequentially. It was interesting to note that both the 8 and 16 threaded configurations managed to get an efficiency of over 1 - this may be caused by some form of operating system level optimisation, or some form of specialised cache handling for applications running on multiple cores.  
+			The results for the \texttt{OpenMP} solution's efficiency followed a similar trend as the speed-up, bar the configurations that used 4 threads. The two threaded solution produced an almost linear efficiency, which would be expected as a percentage of the application must be run sequentially. It was interesting to note that both the 8 and 16 threaded configurations managed to get an efficiency of over 1 - this may be caused by some form of operating system level optimisation, or some form of specialised cache handling for applications running on multiple cores.
+			
+			The results also revealed that there was a slight increase in performance when utilising the \texttt{Dynamic} scheduler as opposed \texttt{Static}. This was likely due to the fact that \texttt{Dynamic} scheduling attempts to keep as many threads as possible working at once, whereas \texttt{Static} scheduling can lead to a thread completing its assigned work and then sit idle.
 			
 			There are number of possible reasons as to why the 4 threaded solution produced skewed results, including: Only 2 of the threads were being run on physical cores and the other 2 threads were being hyper-threaded onto the same cores, leading to unnecessary context switches. Another possible explanation for the results is that all 4 threads were being run on individual cores, but the operating system was hyper-threading background tasks onto the same cores - once again leading to unneeded context switches. 
 			
@@ -225,12 +241,17 @@ Edinburgh Napier University, Edinburgh}% <-this % stops an unwanted space
 		\subsubsection{Expected Results}
 			While it was expected that \texttt{MPI} would provide a speed-up and efficiency increase over the sequential version of the algorithm - the degree of improvement was not certain, nor whether or not it would be comparable to the benefits provided by \texttt{OpenMP}.
 			
-			Considering the specification of the PC's being tested, the communication overhead of \texttt{MPI} was not considered a major bottleneck of the system.
-			
-			Due to the significant overheads of initialising multiple \texttt{MPI} nodes at once, the \texttt{MPI} configurations were permitted to run for an additional 10 iterations before time stamps were collected, in order to generate more consistent results and reduce outlying data points.
+			Due to the significant overheads of initialising multiple \texttt{MPI} nodes at once, the \texttt{MPI} configurations were permitted to run for an additional 10 iterations before time stamps were collected, in order to generate more consistent results and reduce outlying data points. The communication overhead of \texttt{MPI} was not considered a major bottleneck in this system, due to the specifications of network being utilized for communication.
 			
 		\subsubsection{Actual Results}
-			In terms of speed-up, \texttt{MPI} provided significant benefit - reaching close to 70 times speed-up when using 16 PC's each running 8 nodes.
+			In terms of speed-up (Figure \ref{fig_mpi_speed}) \texttt{MPI} provided significant benefit - reaching close to 70 times speed-up when using 16 PC's each running 8 nodes. This level of speed-up was unexpected but extremely well received. The curve of the graph also indicated that even greater speed-up could be achieved, access to additional hardware permitting.
+		
+			Similarly to \texttt{OpenMP}, the overall efficiency (Figure \ref{fig_mpi_eff}) of the system increases with the amount of work being done. This was mostly likely due to the initialisation overheads becoming an overall smaller percentage of the total execution time. 
+			The data also reveals that using a smaller number of PC's, especially for smaller workloads, results in a higher efficiency. This demonstrates how distributed systems transition from a CPU bound problem to a I/O bound problem as the amount of hardware increases.
+			
+			Once again, a noticeable drop in efficiency was recorded for configurations that utilised 4 nodes. This was most likely due to the same reasons mentioned in the \texttt{OpenMP} results, but it interesting to note its occurrence across the different techniques and technologies that were tested.
+			
+			The full results of the \texttt{MPI} tests are visible in Appendices \ref{table_mpi_data_1} and \ref{table_mpi_data_2}.
 		
 		\begin{figure}[h]
 			\centering
@@ -247,9 +268,18 @@ Edinburgh Napier University, Edinburgh}% <-this % stops an unwanted space
 		\end{figure}
 
 	\subsection{MPI with OpenMP}
-		\subsubsection{Expected Results}
-		\subsubsection{Actual Results}
+		The results from the \texttt{OpenMP} tests were used to determine which configurations of \texttt{OpenMP} would be combined with \texttt{MPI} for the final implementation. Said results indicated that 8 threads offered the greatest speed-up and efficiency. For all the \texttt{MPI} with \texttt{OpenMP} tests, a single node was run on each PC and 8 \texttt{OpenMP} threads were instantiated for each of those nodes.
+		 
+ 		\subsubsection{Expected Results}
+			Similarly to the pure \texttt{MPI} implementation, the performance of the \texttt{MPI}/\texttt{OpenMP} solution was uncertain. It was believed that the combined solution would produce overall the better results, but the degree of those could not be ascertained.
 		
+		\subsubsection{Actual Results}
+			For speed-up, Figure \ref{fig_ompi_speed}, the curve of results was very similar to that witnessed on the pure \texttt{MPI} solution, Figure \ref{fig_mpi_speed}. The only major difference between the two graphs being the level of speed-up, with the combined solution loosing $\sim12\%$ when compared to pure \texttt{MPI}. This was particularly interesting, as it was hypothesised that \texttt{MPI} with \texttt{OpenMP} would produce faster results, but it appears that the combined overhead of the technologies was more of a hindrance than a benefit.
+			
+			Regarding efficiency, Figure \ref{fig_ompi_eff}, there is not much to say that has not already been said about the pure \texttt{MPI} version. The overall efficiency of the system drops as the number of PCs in the system increases - again this likely due to problem transitioning from CPU boundaries to I/O boundaries.
+			
+			It is worth noting that neither \texttt{Static} or \texttt{Dynamic} scheduling produced significantly different results. This was likely due to the workload of each individual thread being very small - the total workload was already split between each PC and then further divided for each \texttt{OpenMP} thread.
+			
 		\begin{figure}[h]
 			\centering
 			\includegraphics[width = 0.5\textwidth]{chartOMPISpeed}
@@ -266,7 +296,10 @@ Edinburgh Napier University, Edinburgh}% <-this % stops an unwanted space
 
 	
 \section{Conclusion}
-		
+	An excessive and exhaustive amount of testing and analysis led to a final result: For this particular application, pure \texttt{MPI} provided greater speed-up and efficiency than pure \texttt{OpenMP}, or a combined implementation of both technologies. While this result is well received, there still exists potential for further future work: testing the \texttt{MPI} implementations on even larger numbers of PCs, examining what effects compiler optimisation can have on performance and looking into sequential code optimisations further reduce the execution time of the program.
+	 
+	\subsection{Reflection}
+	Having very little experience with distributed systems, this project came with a great many challenges and frustrations - but the final result of a fully functional, and exceptional fast Ray Tracer outshone the frustrations of working with \texttt{MPI}, \texttt{C++} and a very sparsely commented code base.
 
 \bibliographystyle{IEEEtran}
 \bibliography{Bibliography}
@@ -275,6 +308,14 @@ Edinburgh Napier University, Edinburgh}% <-this % stops an unwanted space
 \newpage
 \onecolumn
 \appendices
+
+\section{}
+\begin{figure}[h]
+	\centering
+	\includegraphics[width =\textwidth]{sequentialProfile}
+	\caption{The Visual Studio code profile of the sequential implementation of the ray tracer.}
+	\label{fig_seq_prfile}
+\end{figure}
 
 \section{}
 \begin{table*}[h]
@@ -294,34 +335,10 @@ Edinburgh Napier University, Edinburgh}% <-this % stops an unwanted space
 	\end{tabular}
 \end{table*}
 
-\section{}
-	\begin{table}[h]
-		\centering
-		\caption{Sequential Benchmarks}
-		\label{table_seq_data}
-		\begin{tabular}{|r|r|}
-			\hline
-			\multicolumn{1}{|l|}{Samples} & \multicolumn{1}{l|}{Mean Time} \\ \hline
-			4                             & 5735                           \\ \hline
-			8                             & 10794                          \\ \hline
-			16                            & 21282                          \\ \hline
-			32                            & 41829                          \\ \hline
-			64                            & 83256                          \\ \hline
-			128                           & 165345                         \\ \hline
-		\end{tabular}
-	\end{table}
 	\newpage
 	
 \section{}
-	\begin{table*}[h]
-		
-		
-		
-		
-		
-		
-		
-		
+	\begin{table*}[h]		
 	\centering
 	\caption{OMP Speed-up and Efficiency}
 	\label{table_omp_data}
